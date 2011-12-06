@@ -604,7 +604,7 @@ function TeshiNet::BuildPassengerRoute(townStart, townEnd)
     endDepotTile = endReturn.depot_tile;
 
     //Did they both actually get built?
-    if (startStationID && endStationID)
+    if (startStationID > 0 && endStationID > 0)
     {
     	startStationTile = AIStation.GetLocation(startStationID);
     	endStationTile = AIStation.GetLocation(endStationID);    	
@@ -612,8 +612,20 @@ function TeshiNet::BuildPassengerRoute(townStart, townEnd)
     else
     {
     	Log.Error("One or more stations or depots were not built. Aborting.", Log.LVL_INFO); //if not, remove what did get built
-    	if (AIStation.IsValidStation(startStationID)) Station.DemolishStation(startStationID);
-    	if (AIStation.IsValidStation(endStationID)) Station.DemolishStation(endStationID);
+    	if (startStationID)
+    	{
+    	    if (AIStation.IsValidStation(startStationID)) 
+    	    {
+    	        Station.DemolishStation(startStationID);
+    	    }
+    	}
+    	if (endStationID)
+    	{
+    	    if (AIStation.IsValidStation(endStationID)) 
+    	    {
+    	    Station.DemolishStation(endStationID);
+    	    }
+    	}
     	if (startDepotTile) AIRoad.RemoveRoadDepot(startDepotTile);
     	if (endDepotTile) AIRoad.RemoveRoadDepot(endDepotTile);
     	return -1;
