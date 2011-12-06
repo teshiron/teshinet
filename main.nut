@@ -992,6 +992,12 @@ function TeshiNet::RemoveUnprofitableRoadRoute()
     
     routeProfits.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING); //the route at the top is our least profitable by vehicle
     
+    if (routeProfits.IsEmpty()) 
+    { 
+        Log.Info("No routes are eligible for removal at this time.", Log.LVL_SUB_DECISIONS);
+        return -1;
+    }
+    
     local deadRoute = routeProfits.Begin(); //this is the station index of the first station on the least profitable route.
     
     if (routeProfits.GetValue(deadRoute) >= 10000 && !this.at_max_RV_count) //min profit to score, $20,000 or 10,000 pounds
