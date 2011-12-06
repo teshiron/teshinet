@@ -93,7 +93,8 @@ function TeshiNet::Start()
         if (this.towns_used.IsEmpty() && this.industries_used.IsEmpty()) //get a loan if we're a new company
         {
             Log.Info("Setting loan to 75% of max loan for startup cash.", Log.LVL_SUB_DECISIONS);
-            AICompany.SetMinimumLoanAmount(AICompany.GetMaxLoanAmount() * 0.75);
+            local tmp = AICompany.GetMaxLoanAmount() * 0.75;
+            AICompany.SetMinimumLoanAmount(tmp.tointeger());
         }    
         
         if (this.at_max_RV_count) //if we've run out of road vehicles, remove the least profitable road route
@@ -475,6 +476,8 @@ function TeshiNet::SelectSubsidy()
         
         Log.Info("Source is " + source + " and destination is " + dest, Log.LVL_DEBUG);
         
+        local maxDist = null;
+	local curYear = AIDate.GetYear(AIDate.GetCurrentDate());
         
         if (cargo == this.passenger_cargo_id)
         {
@@ -528,7 +531,10 @@ function TeshiNet::SelectSubsidy()
             
             //Restrict distance between route pairs by year and bank balance, 
             //to prevent from losing money early game when vehicles are slow
-	        
+
+            local maxDist = null;
+            local curYear = AIDate.GetYear(AIDate.GetCurrentDate());
+
             if (curYear < 1977)
             {
                 maxDist = 50;
