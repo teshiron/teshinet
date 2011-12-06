@@ -228,10 +228,7 @@ function TeshiNet::Save()
     local industriesused = [];
     local sta_dep_pairs = {};
     local sta_pairs = {};
-    
-    savedata.rawset("passenger_cargo_id", this.passenger_cargo_id);
-    savedata.rawset("mail_cargo_id", this.mail_cargo_id);
-    
+        
     for (local x = this.towns_used.Begin(); this.towns_used.HasNext(); x = this.towns_used.Next())
     {
         townsused.push(x);
