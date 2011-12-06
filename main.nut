@@ -526,6 +526,25 @@ function TeshiNet::SelectSubsidy()
         {
             Log.Info("Evaluating an industry subsidy: " + currentSub, Log.LVL_DEBUG);
             
+            //Restrict distance between route pairs by year and bank balance, 
+            //to prevent from losing money early game when vehicles are slow
+	        
+            if (curYear < 1977)
+            {
+                maxDist = 50;
+            }
+            else
+            {
+                if (AICompany.GetBankBalance() > 1000000)
+                {
+                    maxDist = 125;
+                }
+                else
+                {
+                    maxDist = 100;
+                }
+            }
+
             if (AIIndustry.IsBuiltOnWater(source) || AIIndustry.IsBuiltOnWater(dest)) 
             {
                 Log.Info("Either the source or the destination is on water. Skipping.", Log.LVL_DEBUG);
@@ -542,7 +561,7 @@ function TeshiNet::SelectSubsidy()
                     
             distance = AITile.GetDistanceManhattanToTile(sourceTile, destTile);
                     
-            if (distance > 10 && distance < 100)
+            if (distance > 10 && distance < maxDist)
             {
                 Log.Info("Found a subsidy!", Log.LVL_SUB_DECISIONS);
                 return currentSub;
@@ -1124,6 +1143,28 @@ function TeshiNet::GetIndustryPair()
     local source = null;
     local dest = null;
     local cargoList = AICargoList();
+    local maxDist = null;
+ 
+    local curYear = AIDate.GetYear(AIDate.GetCurrentDate());
+    
+    //Restrict distance between route pairs by year and bank balance, 
+    //to prevent from losing money early game when vehicles are slow
+    
+    if (curYear < 1977)
+    {
+        maxDist = 50;
+    }
+    else
+    {
+        if (AICompany.GetBankBalance() > 1000000)
+        {
+            maxDist = 125;
+        }
+        else
+        {
+            maxDist = 100;
+        }
+    }
     
     cargoList.Valuate(AIBase.RandRangeItem, 32767);
     cargoList.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
@@ -1161,7 +1202,7 @@ function TeshiNet::GetIndustryPair()
         destList.RemoveList(this.industries_used);
         
         destList.Valuate(IndustryDistance, AIIndustry.GetLocation(source));
-        destList.KeepBetweenValue(10, 100);
+        destList.KeepBetweenValue(10, maxDist);
         
         if (destList.IsEmpty()) continue;
         
