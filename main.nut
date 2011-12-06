@@ -939,7 +939,7 @@ function TeshiNet::RemoveUnprofitableRoadRoute()
     
     //do not remove a route when we have less than 10 total routes
     //(unless we're out of vehicles to use)
-    local tempList = AIStationList();
+    local tempList = AIStationList(AIStation.STATION_ANY);
         
     if (tempList.Count() <= 20 && !this.at_max_RV_count) 
     {
