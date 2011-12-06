@@ -92,8 +92,8 @@ function TeshiNet::Start()
         
         if (this.towns_used.IsEmpty() && this.industries_used.IsEmpty()) //get a loan if we're a new company
         {
-            Log.Info("Setting loan to 50% of max loan for startup cash.", Log.LVL_SUB_DECISIONS);
-            AICompany.SetMinimumLoanAmount(AICompany.GetMaxLoanAmount() / 2);
+            Log.Info("Setting loan to 75% of max loan for startup cash.", Log.LVL_SUB_DECISIONS);
+            AICompany.SetMinimumLoanAmount(AICompany.GetMaxLoanAmount() * 0.75);
         }    
         
         if (this.at_max_RV_count) //if we've run out of road vehicles, remove the least profitable road route
@@ -930,6 +930,16 @@ function TeshiNet::RemoveDeadRoadStations()
 function TeshiNet::RemoveUnprofitableRoadRoute()
 {
     Log.Info("Searching for least profitable road route for removal.", Log.LVL_INFO);
+    
+    //do not remove a route when we have less than 10 total routes
+    //(unless we're out of vehicles to use)
+    local tempList = AIStationList();
+        
+    if (tempList.Count() <= 20 && !this.at_max_RV_count) 
+    {
+        Log.Info("We have less than 10 routes; not removing one at this time.", Log.LVL_SUB_DECISIONS);
+        return -1;
+    }        
     
     local routeProfits = AIList(); //create a list to store the average profit of each route
     
