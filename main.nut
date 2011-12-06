@@ -264,10 +264,6 @@ function TeshiNet::Load(version, data)
 {
     Log.Info("Loading saved data...", Log.LVL_INFO);
     
-    Log.Info("Loading cargo IDs...", Log.LVL_DEBUG);
-    this.passenger_cargo_id = data.rawget("passenger_cargo_id");
-    this.mail_cargo_id = data.rawget("mail_cargo_id");
-    
     Log.Info("Loading towns serviced...", Log.LVL_DEBUG);
     this.towns_used = AIList();
     
