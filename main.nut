@@ -22,7 +22,7 @@ class TeshiNet extends AIController
     passenger_cargo_id = null;
     mail_cargo_id = null;
     last_route_tick = -1000; //begin constructing a new route immediately
-    last_loan_pmt_tick = 1500;
+    last_loan_pmt_tick = 10000;
     station_depot_pairs = null;
     last_route_manage_tick = 0;
     station_pairs = null;
@@ -189,6 +189,7 @@ function TeshiNet::Start()
             else
             {
                 Log.Warning("Not enough money for a loan payment.", Log.LVL_INFO);
+                this.last_loan_pmt_tick = this.GetTick() + 7000; //allow more time for the company to grow
             }    
         }
         
