@@ -1032,7 +1032,7 @@ function TeshiNet::RemoveUnprofitableRoadRoute()
             
         }    
                
-        this.Sleep(25); //give the rest some more time
+        this.Sleep(100); //give the rest some more time
         timeout++;
         
     } while (!deadVehicles.IsEmpty() && timeout < 45)    
@@ -1056,7 +1056,7 @@ function TeshiNet::RemoveUnprofitableRoadRoute()
                 
             deadVehicles = AIVehicleList_Station(deadRoute);
                
-            this.Sleep(25); //give the rest some more time
+            this.Sleep(100); //give the rest some more time
             timeout++;
                 
         } while (!deadVehicles.IsEmpty() && timeout < 45)    
@@ -1249,7 +1249,7 @@ function TeshiNet::SellUnusedVehicles() //find vehicles without orders, send the
         }    
         
                
-        this.Sleep(25); //give the rest some more time
+        this.Sleep(100); //give the rest some more time
         timeout++;
         
     } while (!deadVehicles.IsEmpty() && timeout < 45)    
@@ -1322,7 +1322,7 @@ function TeshiNet::ForceSellUnusedVeh() //when the main function can't handle it
         }    
         
                
-        this.Sleep(25); //give the rest some more time
+        this.Sleep(100); //give the rest some more time
         timeout++;
         
     } while (!deadVehicles.IsEmpty() && timeout < 45)    
