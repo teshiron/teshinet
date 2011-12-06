@@ -492,12 +492,31 @@ function TeshiNet::SelectSubsidy()
                 continue;
             }  
             
+            //Restrict route distance by year, as a rough approximation of vehicle speed
+            //This should prevent us from building routes that are too long to be profitable with slow buses
+    
+            if (curYear > 1987) 
+    	    { 
+                maxDist = 115; 
+            }
+            else 
+            { 
+                if (curYear > 1965) 
+                { 
+                    maxDist = 80; 
+                } 
+                else
+                {
+                    maxDist = 50;
+                }
+            }    
+            
             sourceTile = AITown.GetLocation(source); //note that this will not be an exact distance
             destTile = AITown.GetLocation(dest);     //since this is the center/seed tile of the town, but it's close enough
         
             distance = AITile.GetDistanceManhattanToTile(sourceTile, destTile);
         
-            if (distance > 10 && distance < 110)
+            if (distance > 10 && distance < maxDist)
             {
                 Log.Info("Found a subsidy!", Log.LVL_SUB_DECISIONS);
                 return currentSub;
@@ -690,6 +709,28 @@ function TeshiNet::GetPassengerTownPair()
     local firstloc = null;
     local townList= null;
     
+    local maxDist = null;
+    local curYear = AIDate.GetYear(AIDate.GetCurrentDate());
+    
+    //Restrict route distance by year, as a rough approximation of vehicle speed
+    //This should prevent us from building routes that are too long to be profitable with slow buses
+    
+    if (curYear > 1987) 
+    { 
+        maxDist = 115; 
+    }
+    else 
+    { 
+        if (curYear > 1965) 
+        { 
+            maxDist = 80; 
+        } 
+        else
+        {
+            maxDist = 50;
+        }
+    }
+    
     do
     {
     
@@ -710,13 +751,13 @@ function TeshiNet::GetPassengerTownPair()
         firstloc = AITown.GetLocation(first);     
         
         townList.RemoveTop(1); // so we'll take that one off the list
-        Log.Info("Found a first town, " + AITown.GetName(first) + ", looking for a second between 10-110 squares away.", Log.LVL_SUB_DECISIONS);
+        Log.Info("Found a first town, " + AITown.GetName(first) + ", looking for a second between 10-" + maxDist + " squares away.", Log.LVL_SUB_DECISIONS);
         
         townList = AITownList(); //repopulate the list
         townList.RemoveList(this.towns_used);
         
         townList.Valuate(this.TownDistance, firstloc);
-        townList.KeepBetweenValue(10, 110);
+        townList.KeepBetweenValue(10, maxDist);
         
         if (townList.IsEmpty())
         {
