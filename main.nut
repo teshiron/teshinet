@@ -693,7 +693,7 @@ function TeshiNet::BuildPassengerRoute(townStart, townEnd)
     AIOrder.AppendOrder(buses[0], startStationTile, AIOrder.AIOF_NONE);
     AIOrder.AppendOrder(buses[0], endStationTile, AIOrder.AIOF_NONE);
     
-    for (local x = 1; x < 5; x++) //purchase subsequent buses
+    for (local x = 1; x < 3; x++) //purchase subsequent buses
     {
         buses.push(AIVehicle.CloneVehicle(useDepot, buses[0], true));
     }    
@@ -701,10 +701,10 @@ function TeshiNet::BuildPassengerRoute(townStart, townEnd)
         
     Log.Info("Vehicles purchased. Starting them.", Log.LVL_SUB_DECISIONS);
     
-    for (local y = 0; y < 5; y++)
+    for (local y = 0; y < 3; y++)
     {
         AIVehicle.StartStopVehicle(buses[y]);
-        this.Sleep(25);
+        this.Sleep(150);
     }
     
     //make sure we don't use these towns again

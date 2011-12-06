@@ -151,17 +151,17 @@ function Cargo::BuildCargoRoute(indStart, indEnd, cargoType)
     AIOrder.AppendOrder(vehs[0], startStationTile, AIOrder.AIOF_FULL_LOAD_ANY);
     AIOrder.AppendOrder(vehs[0], endStationTile, AIOrder.AIOF_UNLOAD);
 
-    for (local x = 1; x < 5; x++) //purchase subsequent trucks
+    for (local x = 1; x < 3; x++) //purchase subsequent trucks
     {
         vehs.push(AIVehicle.CloneVehicle(useDepot, vehs[0], true));
     }    
            
     Log.Info("Vehicles purchased. Starting them.", Log.LVL_SUB_DECISIONS);
     
-    for (local y = 0; y < 5; y++)
+    for (local y = 0; y < 3; y++)
     {
         AIVehicle.StartStopVehicle(vehs[y]);
-        TeshiNet.Sleep(25);
+        TeshiNet.Sleep(150);
     }
     
     //make sure we don't use these industries again
