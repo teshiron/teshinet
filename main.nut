@@ -138,7 +138,7 @@ function TeshiNet::Start()
         skipNewRoute = false;
         
         //TODO: Check being over capacity on existing routes.
-        if (this.GetTick() > (this.last_route_manage_tick + 700))
+        if (this.GetTick() > (this.last_route_manage_tick + 700) && (AICompany.GetBankBalance(AICompany.COMPANY_SELF) > 50000))
         {
             Log.Info("Managing existing routes.", Log.LVL_INFO);
             
@@ -163,36 +163,45 @@ function TeshiNet::Start()
         
         if (this.GetTick() > (this.last_loan_pmt_tick + 1850)) //pay off loan .
         {
-            if (AICompany.GetBankBalance(AICompany.COMPANY_SELF) > (2 * AICompany.GetLoanInterval()))
-            {
-                if (AICompany.GetLoanAmount() != 0)
+            local tempList = AIStationList(AIStation.STATION_ANY);
+            if (tempList.Count() > 30)
+            {            
+                if (AICompany.GetBankBalance(AICompany.COMPANY_SELF) > (2 * AICompany.GetLoanInterval()))
                 {
-                    if (AICompany.GetBankBalance(AICompany.COMPANY_SELF) >= (2 * AICompany.GetLoanAmount()))
+                    if (AICompany.GetLoanAmount() != 0)
                     {
-                        Log.Info("We have more than 2x our loan in the bank. Paying off our loan in full.", Log.LVL_INFO);
-                        AICompany.SetLoanAmount(0);
-                        this.last_loan_pmt_tick = this.GetTick();
+                        if (AICompany.GetBankBalance(AICompany.COMPANY_SELF) >= (2 * AICompany.GetLoanAmount()))
+                        {
+                            Log.Info("We have more than 2x our loan in the bank. Paying off our loan in full.", Log.LVL_INFO);
+                            AICompany.SetLoanAmount(0);
+                            this.last_loan_pmt_tick = this.GetTick();
+                        }
+                        else
+                        {
+                            Log.Info("Making a loan payment.", Log.LVL_INFO);
+                            AICompany.SetLoanAmount(AICompany.GetLoanAmount() - AICompany.GetLoanInterval());
+                            this.last_loan_pmt_tick = this.GetTick();
+                       }    
                     }
                     else
                     {
-                        Log.Info("Making a loan payment.", Log.LVL_INFO);
-                        AICompany.SetLoanAmount(AICompany.GetLoanAmount() - AICompany.GetLoanInterval());
+                        Log.Info("We have no loan.", Log.LVL_DEBUG);
                         this.last_loan_pmt_tick = this.GetTick();
                     }    
                 }
                 else
                 {
-                    Log.Info("We have no loan.", Log.LVL_DEBUG);
-                    this.last_loan_pmt_tick = this.GetTick();
+                    Log.Warning("Not enough money for a loan payment.", Log.LVL_INFO);
+                    this.last_loan_pmt_tick = this.GetTick() + 7000; //allow more time for the company to grow
                 }    
             }
             else
             {
-                Log.Warning("Not enough money for a loan payment.", Log.LVL_INFO);
-                this.last_loan_pmt_tick = this.GetTick() + 7000; //allow more time for the company to grow
-            }    
+                Log.Info("Less than 15 routes in place, no loan payment at this time.", Log.LVL_INFO);
+                this.last_loan_pmt_tick = this.GetTick();
+            }
         }
-        
+                
         if (this.GetTick() > this.last_dead_station_check + 1500)
         {
             RemoveDeadRoadStations();
@@ -368,44 +377,49 @@ function TeshiNet::NewRoadRoute()
         {
             if (this.last_route_type != this.passenger_cargo_id)
             {
-            	Log.Info("Looking for two towns to connect.", Log.LVL_SUB_DECISIONS);
-            	townPair = GetPassengerTownPair();
-            	if (!this.towns_used.HasItem(townPair[0]) && !this.towns_used.HasItem(townPair[1]))
-            	{
-            	    Log.Info("Found a suitable town pair. Building route.", Log.LVL_SUB_DECISIONS);
-            	    BuildPassengerRoute(townPair[0], townPair[1]);
-            	    this.last_route_type = this.passenger_cargo_id;
-            	} 
-            	else
-            	{
-            	    Log.Warning("No suitable towns found this round. Will try again next loop.", Log.LVL_SUB_DECISIONS);
-            	}  
+                Log.Info("Looking for two towns to connect.", Log.LVL_SUB_DECISIONS);
+                townPair = GetPassengerTownPair();
+                if (townPair == -1)
+                {
+                    return -1;
+                }
+                
+                if (!this.towns_used.HasItem(townPair[0]) && !this.towns_used.HasItem(townPair[1]))
+                {
+                    Log.Info("Found a suitable town pair. Building route.", Log.LVL_SUB_DECISIONS);
+                    BuildPassengerRoute(townPair[0], townPair[1]);
+                    this.last_route_type = this.passenger_cargo_id;
+                } 
+                else
+                {
+                    Log.Warning("No suitable towns found this round. Will try again next loop.", Log.LVL_SUB_DECISIONS);
+                }  
             }    
             else
             {
-        	Log.Info("Looking for an industry pair.", Log.LVL_SUB_DECISIONS);
+            Log.Info("Looking for an industry pair.", Log.LVL_SUB_DECISIONS);
                 indPair = GetIndustryPair();
                 if (indPair == -1)
-        	{
-        	    return -1;
-        	}
-        	Log.Info("Found a suitable industry pair, building route.", Log.LVL_SUB_DECISIONS);
-        	Cargo.BuildCargoRoute(indPair[0], indPair[1], indPair[2]);
-        	this.last_route_type = indPair[2];
+            {
+                return -1;
+            }
+            Log.Info("Found a suitable industry pair, building route.", Log.LVL_SUB_DECISIONS);
+            Cargo.BuildCargoRoute(indPair[0], indPair[1], indPair[2]);
+            this.last_route_type = indPair[2];
             }                
         }
         else
         {
-	    Log.Info("Looking for an industry pair.", Log.LVL_SUB_DECISIONS);
-	    indPair = GetIndustryPair();
-	    if (indPair == -1)
-	    {
-	        return -1;
-	    }
-	    Log.Info("Found a suitable industry pair, building route.", Log.LVL_SUB_DECISIONS);
-	    Cargo.BuildCargoRoute(indPair[0], indPair[1], indPair[2]);
-	    this.last_route_type = indPair[2];
-	}    
+        Log.Info("Looking for an industry pair.", Log.LVL_SUB_DECISIONS);
+        indPair = GetIndustryPair();
+        if (indPair == -1)
+        {
+            return -1;
+        }
+        Log.Info("Found a suitable industry pair, building route.", Log.LVL_SUB_DECISIONS);
+        Cargo.BuildCargoRoute(indPair[0], indPair[1], indPair[2]);
+        this.last_route_type = indPair[2];
+    }    
     }
 }
 
@@ -461,8 +475,6 @@ function TeshiNet::SelectSubsidy()
     subsList.Valuate(AIBase.RandItem);
     subsList.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
     
-    //Find a source/destination pair more than 10 but less than 110 tiles distant.
-    
     for (local currentSub = subsList.Begin(); subsList.HasNext(); currentSub = subsList.Next())
     {
         local source = AISubsidy.GetSourceIndex(currentSub);
@@ -478,7 +490,7 @@ function TeshiNet::SelectSubsidy()
         Log.Info("Source is " + source + " and destination is " + dest, Log.LVL_DEBUG);
         
         local maxDist = null;
-	local curYear = AIDate.GetYear(AIDate.GetCurrentDate());
+    local curYear = AIDate.GetYear(AIDate.GetCurrentDate());
         
         if (cargo == this.passenger_cargo_id)
         {
@@ -494,64 +506,16 @@ function TeshiNet::SelectSubsidy()
             if (this.towns_used.HasItem(source) && this.towns_used.HasItem(dest)) //check if we serve both towns
             {
                 continue;
-            }  
+            }      
             
-            //Restrict route distance by year, as a rough approximation of vehicle speed
-            //This should prevent us from building routes that are too long to be profitable with slow buses
-    
-            if (curYear > 1987) 
-    	    { 
-                maxDist = 115; 
-            }
-            else 
-            { 
-                if (curYear > 1965) 
-                { 
-                    maxDist = 80; 
-                } 
-                else
-                {
-                    maxDist = 50;
-                }
-            }    
-            
-            sourceTile = AITown.GetLocation(source); //note that this will not be an exact distance
-            destTile = AITown.GetLocation(dest);     //since this is the center/seed tile of the town, but it's close enough
-        
-            distance = AITile.GetDistanceManhattanToTile(sourceTile, destTile);
-        
-            if (distance > 10 && distance < maxDist)
-            {
-                Log.Info("Found a subsidy!", Log.LVL_SUB_DECISIONS);
-                return currentSub;
-            } 
+            Log.Info("Found a subsidy!", Log.LVL_SUB_DECISIONS);
+            return currentSub;
+
         }
         else
         {
             Log.Info("Evaluating an industry subsidy: " + currentSub, Log.LVL_DEBUG);
             
-            //Restrict distance between route pairs by year and bank balance, 
-            //to prevent from losing money early game when vehicles are slow
-
-            local maxDist = null;
-            local curYear = AIDate.GetYear(AIDate.GetCurrentDate());
-
-            if (curYear < 1977)
-            {
-                maxDist = 50;
-            }
-            else
-            {
-                if (AICompany.GetBankBalance() > 1000000)
-                {
-                    maxDist = 125;
-                }
-                else
-                {
-                    maxDist = 100;
-                }
-            }
-
             if (AIIndustry.IsBuiltOnWater(source) || AIIndustry.IsBuiltOnWater(dest)) 
             {
                 Log.Info("Either the source or the destination is on water. Skipping.", Log.LVL_DEBUG);
@@ -563,16 +527,8 @@ function TeshiNet::SelectSubsidy()
                 continue;
             }  
             
-            sourceTile = AIIndustry.GetLocation(source); //note that this will not be an exact distance
-            destTile = AIIndustry.GetLocation(dest);     //since this is the center/seed tile of the town, but it's close enough
-                    
-            distance = AITile.GetDistanceManhattanToTile(sourceTile, destTile);
-                    
-            if (distance > 10 && distance < maxDist)
-            {
-                Log.Info("Found a subsidy!", Log.LVL_SUB_DECISIONS);
-                return currentSub;
-            } 
+            Log.Info("Found a subsidy!", Log.LVL_SUB_DECISIONS);
+            return currentSub;
         }
     }         
     Log.Info("Failed to find a subsidy.", Log.LVL_SUB_DECISIONS);
@@ -606,29 +562,29 @@ function TeshiNet::BuildPassengerRoute(townStart, townEnd)
     //Did they both actually get built?
     if (startStationID > 0 && endStationID > 0)
     {
-    	startStationTile = AIStation.GetLocation(startStationID);
-    	endStationTile = AIStation.GetLocation(endStationID);    	
+        startStationTile = AIStation.GetLocation(startStationID);
+        endStationTile = AIStation.GetLocation(endStationID);       
     }
     else
     {
-    	Log.Error("One or more stations or depots were not built. Aborting.", Log.LVL_INFO); //if not, remove what did get built
-    	if (startStationID)
-    	{
-    	    if (AIStation.IsValidStation(startStationID)) 
-    	    {
-    	        Station.DemolishStation(startStationID);
-    	    }
-    	}
-    	if (endStationID)
-    	{
-    	    if (AIStation.IsValidStation(endStationID)) 
-    	    {
-    	    Station.DemolishStation(endStationID);
-    	    }
-    	}
-    	if (startDepotTile) AIRoad.RemoveRoadDepot(startDepotTile);
-    	if (endDepotTile) AIRoad.RemoveRoadDepot(endDepotTile);
-    	return -1;
+        Log.Error("One or more stations or depots were not built. Aborting.", Log.LVL_INFO); //if not, remove what did get built
+        if (startStationID)
+        {
+            if (AIStation.IsValidStation(startStationID)) 
+            {
+                Station.DemolishStation(startStationID);
+            }
+        }
+        if (endStationID)
+        {
+            if (AIStation.IsValidStation(endStationID)) 
+            {
+            Station.DemolishStation(endStationID);
+            }
+        }
+        if (startDepotTile) AIRoad.RemoveRoadDepot(startDepotTile);
+        if (endDepotTile) AIRoad.RemoveRoadDepot(endDepotTile);
+        return -1;
     }
     
     //Now, pathfind and build.
@@ -640,12 +596,12 @@ function TeshiNet::BuildPassengerRoute(townStart, townEnd)
     //Did it work?
     if (pathResult != 0)
     {
-    	Log.Error("Unable to connect stations. Aborting and removing stations.", Log.LVL_INFO);
-    	Station.DemolishStation(AIStation.GetStationID(startStationTile));
-    	Station.DemolishStation(AIStation.GetStationID(endStationTile));
-    	AIRoad.RemoveRoadDepot(startDepotTile);
-    	AIRoad.RemoveRoadDepot(endDepotTile);
-    	return -1
+        Log.Error("Unable to connect stations. Aborting and removing stations.", Log.LVL_INFO);
+        Station.DemolishStation(AIStation.GetStationID(startStationTile));
+        Station.DemolishStation(AIStation.GetStationID(endStationTile));
+        AIRoad.RemoveRoadDepot(startDepotTile);
+        AIRoad.RemoveRoadDepot(endDepotTile);
+        return -1
     }  
     
     //Now that the path is built, let's build some vehicles.
@@ -746,6 +702,7 @@ function TeshiNet::GetPassengerTownPair()
     local second = -1;
     local firstloc = null;
     local townList= null;
+    local timeout = 0
     
     local maxDist = null;
     local curYear = AIDate.GetYear(AIDate.GetCurrentDate());
@@ -801,6 +758,7 @@ function TeshiNet::GetPassengerTownPair()
         {
             Log.Info("No suitable matches for " + AITown.GetName(first) + ". Picking a new start town.", Log.LVL_SUB_DECISIONS);
             second = -1;
+            timeout++;
             continue;
         }
         
@@ -810,7 +768,12 @@ function TeshiNet::GetPassengerTownPair()
         second = townList.Begin();
         Log.Info("Found a second town, " + AITown.GetName(second), Log.LVL_SUB_DECISIONS);
         
-    } while (second == -1)   
+    } while (second == -1 && timeout < 10)   
+    if (second == -1)
+    {
+        Log.Error("Unable to find a suitable town pair.", Log.LVL_INFO);
+        return -1;
+    }
     
     pair = [first, second]
     return pair;        
@@ -958,7 +921,18 @@ function TeshiNet::RemoveUnprofitableRoadRoute()
     {
         Log.Info("We have less than 10 routes; not removing one at this time.", Log.LVL_SUB_DECISIONS);
         return -1;
-    }        
+    }
+    else
+    {
+        if (tempList.Count() >= 20 && tempList.Count() <= 30)
+        {
+            if (AICompany.GetBankBalance(AICompany.COMPANY_SELF) < 50000)
+            {
+                 Log.Info("We have 10-15 routes, but not enough money to build a replacement. Not removing one now", Log.LVL_SUB_DECISIONS);
+                 return -1;
+            }
+        }
+    }           
     
     local routeProfits = AIList(); //create a list to store the average profit of each route
     
@@ -1056,14 +1030,14 @@ function TeshiNet::RemoveUnprofitableRoadRoute()
     
     for (local curVeh = deadVehicles.Begin(); deadVehicles.HasNext(); curVeh = deadVehicles.Next())
     {
-    	AIOrder.UnshareOrders(curVeh); //unshare orders
-    	
-    	do //delete existing orders
-    	{
-    	    AIOrder.RemoveOrder(curVeh, 0);
-    	} while (AIOrder.GetOrderCount(curVeh) > 0)
-    	
-    	AIOrder.AppendOrder(curVeh, depotLoc, AIOrder.AIOF_STOP_IN_DEPOT); //send to depot
+        AIOrder.UnshareOrders(curVeh); //unshare orders
+        
+        do //delete existing orders
+        {
+            AIOrder.RemoveOrder(curVeh, 0);
+        } while (AIOrder.GetOrderCount(curVeh) > 0)
+        
+        AIOrder.AppendOrder(curVeh, depotLoc, AIOrder.AIOF_STOP_IN_DEPOT); //send to depot
     }
     
     this.Sleep(100); //give them time to arrive
@@ -1078,10 +1052,10 @@ function TeshiNet::RemoveUnprofitableRoadRoute()
             if (AIVehicle.IsStoppedInDepot(curVeh))
             {
                 sold = AIVehicle.SellVehicle(curVeh);
-            	if (sold)
-            	{
-            	    deadVehicles.RemoveItem(curVeh);
-            	}
+                if (sold)
+                {
+                    deadVehicles.RemoveItem(curVeh);
+                }
             }
             
         }    
@@ -1153,8 +1127,8 @@ function TeshiNet::RemoveRoadStation(curSta)
     
     if (searchArea.IsEmpty())
     {
-    	searchArea = AITileList_StationType(curSta, AIStation.STATION_TRUCK_STOP);
-    }    	
+        searchArea = AITileList_StationType(curSta, AIStation.STATION_TRUCK_STOP);
+    }       
                     
     for (local tile = searchArea.Begin(); searchArea.HasNext(); tile = searchArea.Next())
     {
@@ -1298,9 +1272,9 @@ function TeshiNet::SellUnusedVehicles() //find vehicles without orders, send the
     
     if (sentTotal == 0) //if we couldn't send any to the depot, we probably need to build a depot.
     {
-    	ForceSellUnusedVeh();
-    	return;
-    }    	   	    
+        ForceSellUnusedVeh();
+        return;
+    }               
 
     this.Sleep(100); //give them time to arrive
     local timeout = 0;
@@ -1316,10 +1290,10 @@ function TeshiNet::SellUnusedVehicles() //find vehicles without orders, send the
             if (AIVehicle.IsStoppedInDepot(curVeh))
             {
                 sold = AIVehicle.SellVehicle(curVeh);
-            	if (sold)
-            	{
-            	    deadVehicles.RemoveItem(curVeh);
-            	}
+                if (sold)
+                {
+                    deadVehicles.RemoveItem(curVeh);
+                }
             }
             
         }    
@@ -1370,10 +1344,10 @@ function TeshiNet::ForceSellUnusedVeh() //when the main function can't handle it
     Log.Info("After building a depot, was able to send " + sentTotal + " of them to a depot.", Log.LVL_SUB_DECISIONS);
     
     if (sentTotal == 0) //if we couldn't send any to the depot, we will remove it and try again another time.
-    {    	
-    	AIRoad.RemoveRoadDepot(depotLoc);
-    	return;
-    }    	   	    
+    {       
+        AIRoad.RemoveRoadDepot(depotLoc);
+        return;
+    }               
 
     this.Sleep(100); //give them time to arrive
     local timeout = 0;
@@ -1389,10 +1363,10 @@ function TeshiNet::ForceSellUnusedVeh() //when the main function can't handle it
             if (AIVehicle.IsStoppedInDepot(curVeh))
             {
                 sold = AIVehicle.SellVehicle(curVeh);
-            	if (sold)
-            	{
-            	    deadVehicles.RemoveItem(curVeh);
-            	}
+                if (sold)
+                {
+                    deadVehicles.RemoveItem(curVeh);
+                }
             }
             
         }    
