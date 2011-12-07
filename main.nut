@@ -20,6 +20,7 @@ class TeshiNet extends AIController
     towns_used = null;
     industries_used = null;
     passenger_cargo_id = null;
+    goods_cargo_id = null;
     mail_cargo_id = null;
     last_route_tick = -1000; //begin constructing a new route immediately
     last_loan_pmt_tick = 10000;
@@ -62,6 +63,15 @@ class TeshiNet extends AIController
                 break;
             }
         }
+        
+        for (local i = list.Begin(); list.HasNext(); i = list.Next()) 
+        {
+            if (AICargo.GetTownEffect(i) == AICargo.TE_GOODS) 
+            {
+                this.goods_cargo_id = i;
+                break;
+            }
+        }        
         
         this.cargo_list.RemoveValue(this.passenger_cargo_id);
         this.cargo_list.RemoveValue(this.mail_cargo_id);
@@ -526,6 +536,12 @@ function TeshiNet::SelectSubsidy()
             {
                 continue;
             }  
+            
+            if (cargo == this.goods_cargo_id || cargo == this.mail_cargo_id)
+            {
+                Log.Info("Cargo type is delivered to a town, which our route construction cannot handle. Skipping.", Log.LVL_DEBUG);
+                continue;
+            }    
             
             Log.Info("Found a subsidy!", Log.LVL_SUB_DECISIONS);
             return currentSub;
