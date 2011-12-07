@@ -33,7 +33,7 @@ class TeshiNet extends AIController
     cargo_list = null;
     last_cargo = null;
     last_route_type = null;
-    last_unprof_route_check = 15000; //we want to wait at least 15,000 ticks before we start removing routes.
+    last_unprof_route_check = 5000;
     last_air_route = -1200;
     last_plane_check = 1000;
     disable_buses = false;
@@ -102,14 +102,15 @@ function TeshiNet::Start()
         
         if (this.towns_used.IsEmpty() && this.industries_used.IsEmpty()) //get a loan if we're a new company
         {
-            Log.Info("Setting loan to 75% of max loan for startup cash.", Log.LVL_SUB_DECISIONS);
-            local tmp = AICompany.GetMaxLoanAmount() * 0.75;
+            Log.Info("Setting loan to max loan for startup cash.", Log.LVL_SUB_DECISIONS);
+            local tmp = AICompany.GetMaxLoanAmount();
             AICompany.SetMinimumLoanAmount(tmp.tointeger());
         }    
         
         if (this.at_max_RV_count) //if we've run out of road vehicles, remove the least profitable road route
         {
             RemoveLeastProfRoadRoute();
+            RemoveUnproftiableRoadRoute();
             SellUnusedVehicles();
             this.at_max_RV_count = false;
             this.last_unprof_route_check = this.GetTick();
@@ -929,26 +930,7 @@ function TeshiNet::RemoveLeastProfRoadRoute()
 {
     Log.Info("Searching for least profitable road route for removal.", Log.LVL_INFO);
     
-    //do not remove a route when we have less than 10 total routes
-    //(unless we're out of vehicles to use)
-    local tempList = AIStationList(AIStation.STATION_ANY);
-        
-    if (tempList.Count() <= 20 && !this.at_max_RV_count) 
-    {
-        Log.Info("We have less than 10 routes; not removing one at this time.", Log.LVL_SUB_DECISIONS);
-        return -1;
-    }
-    else
-    {
-        if (tempList.Count() >= 20 && tempList.Count() <= 30)
-        {
-            if (AICompany.GetBankBalance(AICompany.COMPANY_SELF) < 50000)
-            {
-                 Log.Info("We have 10-15 routes, but not enough money to build a replacement. Not removing one now", Log.LVL_SUB_DECISIONS);
-                 return -1;
-            }
-        }
-    }           
+    //we do not need to check against number of routes anymore as we are only calling this function when we are at max RV count
     
     local routeProfits = AIList(); //create a list to store the average profit of each route
     
@@ -968,7 +950,6 @@ function TeshiNet::RemoveLeastProfRoadRoute()
         vehicles.Valuate(AIVehicle.GetProfitLastYear);
         
         local revenuetotal = 0;
-        local meanprofit = 0;
         
         for (local veh = vehicles.Begin(); vehicles.HasNext(); veh = vehicles.Next())
         {
@@ -997,7 +978,6 @@ function TeshiNet::RemoveLeastProfRoadRoute()
         vehicles.Valuate(AIVehicle.GetProfitLastYear);
         
         local revenuetotal = 0;
-        local meanprofit = 0;
         
         for (local veh = vehicles.Begin(); vehicles.HasNext(); veh = vehicles.Next())
         {
@@ -1404,4 +1384,87 @@ function TeshiNet::ForceSellUnusedVeh() //when the main function can't handle it
     
     Log.Info("Recovered " + money.GetCosts() + " pounds by selling them.", Log.LVL_SUB_DECISIONS);
     
+}
+
+function TeshiNet::RemoveUnprofitableRoadRoute()
+{
+    Log.Info("Searching for unprofitable road routes for removal.", Log.LVL_INFO);
+        
+    local routeProfits = AIList(); //create a list to store the average profit of each route
+    
+    local staList = AIStationList(AIStation.STATION_BUS_STOP);
+    
+    for (local route = staList.Begin(); staList.HasNext(); route = staList.Next()) //iterate through our bus stations
+    {
+        local vehicles = AIVehicleList_Station(route);
+        
+        if (vehicles.IsEmpty()) continue;
+        
+        vehicles.Valuate(AIVehicle.GetAge); //how old are they?
+        vehicles.KeepAboveValue(365 * 2); //we only want to calculate on vehicles that have had two full years to run. this ensures last year's profit is a full year.
+        
+        if (vehicles.IsEmpty()) continue; //young route? give it a chance.
+        
+        vehicles.Valuate(AIVehicle.GetProfitLastYear);
+        
+        local revenuetotal = 0;
+        
+        for (local veh = vehicles.Begin(); vehicles.HasNext(); veh = vehicles.Next())
+        {
+            revenuetotal += vehicles.GetValue(veh);
+        }    
+        
+        local meanprofit = revenuetotal / vehicles.Count(); //calculate the mean profit (total revenue divided by total vehicle count)
+        
+        routeProfits.AddItem(route, meanprofit); //add this route with profit total to the list.
+        
+    }   
+
+    staList = AIStationList(AIStation.STATION_TRUCK_STOP);
+    
+    for (local route = staList.Begin(); staList.HasNext(); route = staList.Next()) //iterate through our truck stations
+    {
+        local vehicles = AIVehicleList_Station(route);
+        
+        if (vehicles.IsEmpty()) continue;
+        
+        vehicles.Valuate(AIVehicle.GetAge); //how old are they?
+        vehicles.KeepAboveValue(365 * 2); //we only want to calculate on vehicles that have had two full years to run. this ensures last year's profit is a full year.
+        
+        if (vehicles.IsEmpty()) continue; //young route? give it a chance.
+        
+        vehicles.Valuate(AIVehicle.GetProfitLastYear);
+        
+        local revenuetotal = 0;
+        
+        for (local veh = vehicles.Begin(); vehicles.HasNext(); veh = vehicles.Next())
+        {
+            revenuetotal += vehicles.GetValue(veh);
+        }    
+        
+        local meanprofit = revenuetotal / vehicles.Count(); //calculate the mean profit (total revenue divided by total vehicle count)
+        
+        routeProfits.AddItem(route, meanprofit); //add this route with profit total to the list.
+    }   
+    
+    routeProfits.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING); //the route at the top is our least profitable by vehicle
+    routeProfits.KeepBelowValue(1); //only negative or 0 amounts (negative profits)
+    
+    if (routeProfits.IsEmpty()) 
+    { 
+        Log.Info("No routes are entirely unprofitable at this time.", Log.LVL_SUB_DECISIONS);
+        return -1;
+    }
+    
+    //iterate through and remove all unprofitable routes
+    for (local deadRoute = routeProfits.Begin(); routeProfits.HasNext(); deadRoute = routeProfits.Next())
+    {    
+        local deadRouteStart = deadRoute;
+        local deadRouteEnd = this.station_pairs.GetValue(deadRouteStart); //the "value" of the first station is the index of the second station in the route
+
+        Log.Info("The route from " + AIStation.GetName(deadRouteStart) + " to " + AIStation.GetName(deadRouteEnd) + " is unprofitable. Killing this route.", Log.LVL_INFO);
+        Log.Info("The average profit per vehicle last year was " + routeProfits.GetValue(deadRoute) + " pounds on this route.", Log.LVL_SUB_DECISIONS);
+
+        RemoveRoadRoute(deadRouteStart, deadRouteEnd);
+    }
 }
