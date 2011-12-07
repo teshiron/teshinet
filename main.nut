@@ -109,7 +109,7 @@ function TeshiNet::Start()
         
         if (this.at_max_RV_count) //if we've run out of road vehicles, remove the least profitable road route
         {
-            RemoveUnprofitableRoadRoute();
+            RemoveLeastProfRoadRoute();
             SellUnusedVehicles();
             this.at_max_RV_count = false;
             this.last_unprof_route_check = this.GetTick();
@@ -221,8 +221,8 @@ function TeshiNet::Start()
         }    
           
         
-        /* Every 6000 ticks, remove our least profitable route (below $20K) regardless of whether we're at max RV count */
-        if (this.GetTick() > this.last_unprof_route_check + 6000) 
+        /* Every 3000 ticks, remove all unprofitable routes over 2 yrs old, regardless of whether we're at max RV count */
+        if (this.GetTick() > this.last_unprof_route_check + 3000) 
         {
             RemoveUnprofitableRoadRoute();
             this.last_unprof_route_check = this.GetTick();
@@ -925,7 +925,7 @@ function TeshiNet::RemoveDeadRoadStations()
     }    
 }
 
-function TeshiNet::RemoveUnprofitableRoadRoute()
+function TeshiNet::RemoveLeastProfRoadRoute()
 {
     Log.Info("Searching for least profitable road route for removal.", Log.LVL_INFO);
     
@@ -1031,6 +1031,14 @@ function TeshiNet::RemoveUnprofitableRoadRoute()
     Log.Info("The route from " + AIStation.GetName(deadRouteStart) + " to " + AIStation.GetName(deadRouteEnd) + " is our least profitable route per vehicle. Killing this route.", Log.LVL_INFO);
     Log.Info("The average profit per vehicle last year was " + routeProfits.GetValue(deadRoute) + " (pounds) on this route.", Log.LVL_SUB_DECISIONS);
     
+    RemoveRoadRoute(deadRouteStart, deadRouteEnd);
+}
+
+function TeshiNet::RemoveRoadRoute(start_station, end_station)
+{
+    local deadRoute = start_station;
+    local deadRouteStart = start_station;
+    local deadRouteEnd = end_station;
     local deadVehicles = AIVehicleList_Station(deadRoute);
     
     //is this a passenger or cargo route?
@@ -1129,7 +1137,6 @@ function TeshiNet::RemoveUnprofitableRoadRoute()
     this.station_depot_pairs.RemoveItem(deadRouteStart);
     this.station_pairs.RemoveItem(deadRouteEnd);
     this.station_depot_pairs.RemoveItem(deadRouteEnd);
-
     
     Log.Info("Cost of route removal was " + money.GetCosts() + " pounds.", Log.LVL_SUB_DECISIONS);
     return 1;
@@ -1181,7 +1188,7 @@ function TeshiNet::GetIndustryPair()
     }
     else
     {
-        if (AICompany.GetBankBalance() > 1000000)
+        if (AICompany.GetBankBalance(AICompany.COMPANY_SELF) > 1000000)
         {
             maxDist = 125;
         }
