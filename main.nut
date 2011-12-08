@@ -90,7 +90,7 @@ function TeshiNet::Start()
     if (this.towns_used.IsEmpty()) SetCompanyName();
     
     AICompany.SetAutoRenewStatus(true);
-    AICompany.SetAutoRenewMoney(100000);
+    AICompany.SetAutoRenewMoney(20000);
     AICompany.SetAutoRenewMonths(-6);
        
     //Main loop.
