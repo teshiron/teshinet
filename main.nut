@@ -33,7 +33,7 @@ class TeshiNet extends AIController
     cargo_list = null;
     last_cargo = null;
     last_route_type = null;
-    last_unprof_route_check = 5000;
+    last_unprof_route_check = 0;
     last_air_route = -1200;
     last_plane_check = 1000;
     disable_buses = false;
@@ -126,6 +126,21 @@ function TeshiNet::Start()
             skipPlaneRoute = true; //same as above
         }
                 
+        if (this.GetTick() > (this.last_route_manage_tick + 1400) && (AICompany.GetBankBalance(AICompany.COMPANY_SELF) > 50000))
+        {
+            Log.Info("Managing existing routes.", Log.LVL_INFO);
+
+            ManageBusyBusStations();
+
+            Cargo.ManageBusyTruckStations();
+
+            Planes.ManageBusyAirports();
+
+            Log.Info("Done managing routes.", Log.LVL_INFO);
+
+            this.last_route_manage_tick = this.GetTick();
+        }    
+
         //Build a new road route if there's enough cash.
         if (AICompany.GetBankBalance(AICompany.COMPANY_SELF) > 50000 && this.GetTick() > (this.last_route_tick + 1000)) 
         {
@@ -147,23 +162,7 @@ function TeshiNet::Start()
         }    
         
         skipNewRoute = false;
-        
-        //TODO: Check being over capacity on existing routes.
-        if (this.GetTick() > (this.last_route_manage_tick + 700) && (AICompany.GetBankBalance(AICompany.COMPANY_SELF) > 50000))
-        {
-            Log.Info("Managing existing routes.", Log.LVL_INFO);
-            
-            ManageBusyBusStations();
-            
-            Cargo.ManageBusyTruckStations();
-            
-            Planes.ManageBusyAirports();
-            
-            Log.Info("Done managing routes.", Log.LVL_INFO);
-            
-            this.last_route_manage_tick = this.GetTick();
-        }    
-     
+             
         if (this.GetTick() > (this.last_plane_check + 1250))
         {
             //TODO: find planes with only one order and remove the airport -- the route was not built right.
@@ -346,7 +345,6 @@ function TeshiNet::SetCompanyName()
             if(i > 255) break;
         }
     }
-    AICompany.SetPresidentName("P. Resident");
 }
 
 function TeshiNet::NewRoadRoute()
@@ -812,9 +810,39 @@ function TeshiNet::ManageBusyBusStations()
     
     for (local curStation = stationList.Begin(); stationList.HasNext(); curStation = stationList.Next())
     {
-        local waiting = AIStation.GetCargoWaiting(curStation, this.passenger_cargo_id)
+
+        //calculate average profit for the route
+        local vehicles = AIVehicleList_Station(curStation);
+
+        if (vehicles.IsEmpty()) continue;
+
+        vehicles.Valuate(AIVehicle.GetAge); //how old are they?
+        vehicles.KeepAboveValue(365 * 2); //we only want to calculate on vehicles that have had two full years to run. this ensures last year's profit is a full year.
+
+        if (vehicles.IsEmpty()) continue; //young route? give it a chance.
+
+        vehicles.Valuate(AIVehicle.GetProfitLastYear);
+
+        local revenuetotal = 0;
+
+        for (local veh = vehicles.Begin(); vehicles.HasNext(); veh = vehicles.Next())
+        {
+            revenuetotal += vehicles.GetValue(veh);
+        }    
+
+        local meanprofit = revenuetotal / vehicles.Count(); //calculate the mean profit (total revenue divided by total vehicle count)
+        local vehPrice = AIEngine.GetPrice(AIVehicle.GetEngineType(vehicles.Begin()));
+                
+        if ((meanprofit * 3) < vehPrice)
+        {
+            Log.Info("There is cargo waiting at " + AIStation.GetName(curStation) + " but a new vehicle would not pay for itself within 3 years. Skipping.", Log.LVL_SUB_DECISIONS);
+            continue;
+        }    
+        else
+        {
+            Log.Info("A new vehicle for " + AIStation.GetName(curStation) + " will pay for itself in " + (vehPrice / meanprofit)+ " years.", Log.LVL_DEBUG);
+        }
         
-       
         local vehList = AIVehicleList_Station(curStation); //make a list of vehicles at this station, so we can count them
             
         local numveh = vehList.Count();
@@ -836,6 +864,7 @@ function TeshiNet::ManageBusyBusStations()
                 Log.Info("Unable to grow the station. Will try again later.", Log.LVL_INFO);
             }
         }    
+        
         CloneVehicleByStation(curStation);
     }    
 }    

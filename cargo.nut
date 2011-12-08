@@ -21,9 +21,9 @@ function Cargo::BuildCargoRoute(indStart, indEnd, cargoType)
     
     if (!startStationTile || !endStationTile)
     {
-    	Log.Error("Either the start or ending station did not get built. Aborting.", Log.LVL_INFO);
-    	return -1;
-    }    	
+        Log.Error("Either the start or ending station did not get built. Aborting.", Log.LVL_INFO);
+        return -1;
+    }       
         
     local builder = RoadBuilder();
     
@@ -32,11 +32,11 @@ function Cargo::BuildCargoRoute(indStart, indEnd, cargoType)
     
     if (pathResult != 0)
     {
-    	Log.Error("Unable to connect stations. Aborting and removing stations.", Log.LVL_INFO);
-    	Station.DemolishStation(AIStation.GetStationID(startStationTile));
-    	Station.DemolishStation(AIStation.GetStationID(endStationTile));
-    	return -1
-    }    	
+        Log.Error("Unable to connect stations. Aborting and removing stations.", Log.LVL_INFO);
+        Station.DemolishStation(AIStation.GetStationID(startStationTile));
+        Station.DemolishStation(AIStation.GetStationID(endStationTile));
+        return -1
+    }       
     
     //build depots
     startDepotTile = Road.BuildDepotNextToRoad(startStationTile, 1, 500);
@@ -44,9 +44,9 @@ function Cargo::BuildCargoRoute(indStart, indEnd, cargoType)
     
     if (!startDepotTile || !endDepotTile)
     {
-    	Log.Error("Either the start or ending depot did not get built. Aborting.", Log.LVL_INFO);
-    	return -1;
-    }    	
+        Log.Error("Either the start or ending depot did not get built. Aborting.", Log.LVL_INFO);
+        return -1;
+    }       
 
     //Now that the path is built, let's build some vehicles.
     local useDepot = null;
@@ -83,34 +83,34 @@ function Cargo::BuildCargoRoute(indStart, indEnd, cargoType)
     
     if (vehList.IsEmpty()) //No vehicles for this cargo?? Maybe we can refit one!
     {
-    	vehList = AIEngineList(AIVehicle.VT_ROAD); //repopulate
-    	
-    	//only the buildable engines
-	vehList.Valuate(AIEngine.IsBuildable);
-	vehList.KeepValue(1);
-    	
-    	//and only road buses, not trams
+        vehList = AIEngineList(AIVehicle.VT_ROAD); //repopulate
+        
+        //only the buildable engines
+    vehList.Valuate(AIEngine.IsBuildable);
+    vehList.KeepValue(1);
+        
+        //and only road buses, not trams
         vehList.Valuate(AIEngine.GetRoadType);
-    	vehList.KeepValue(AIRoad.ROADTYPE_ROAD);
-	
-	//See if we can refit one of the truck types
-	vehList.Valuate(AIEngine.CanRefitCargo, cargoType);
-	vehList.KeepValue(1);
-	
-	//but not articulated -- we're using pull in stations
-	vehList.Valuate(AIEngine.IsArticulated);
-	vehList.KeepValue(0);
-	
-	//Do we have a winner?
-	if (!vehList.IsEmpty())
-	{
-	   mustRefit = true;
-	}
-	else
-	{
-	   Log.Warning("No vehicles available for this type of route. Aborting.", Log.LVL_INFO);
-	   return -1;
-	}   
+        vehList.KeepValue(AIRoad.ROADTYPE_ROAD);
+    
+    //See if we can refit one of the truck types
+    vehList.Valuate(AIEngine.CanRefitCargo, cargoType);
+    vehList.KeepValue(1);
+    
+    //but not articulated -- we're using pull in stations
+    vehList.Valuate(AIEngine.IsArticulated);
+    vehList.KeepValue(0);
+    
+    //Do we have a winner?
+    if (!vehList.IsEmpty())
+    {
+       mustRefit = true;
+    }
+    else
+    {
+       Log.Warning("No vehicles available for this type of route. Aborting.", Log.LVL_INFO);
+       return -1;
+    }   
 
     }
     
@@ -143,9 +143,9 @@ function Cargo::BuildCargoRoute(indStart, indEnd, cargoType)
     //refit if necessary
     if (mustRefit)
     {
-    	Log.Info("Refitting.", Log.LVL_DEBUG);
-    	AIVehicle.RefitVehicle(vehs[0], cargoType);
-    }    	
+        Log.Info("Refitting.", Log.LVL_DEBUG);
+        AIVehicle.RefitVehicle(vehs[0], cargoType);
+    }       
     
     //give this truck orders     
     AIOrder.AppendOrder(vehs[0], startStationTile, AIOrder.AIOF_FULL_LOAD_ANY);
@@ -199,17 +199,46 @@ function Cargo::ManageBusyTruckStations()
         masterList.AddList(stationList);
     }    
             
-        if (masterList.IsEmpty()) // if the list is empty, then all stations are below 200 waiting cargo, no need to increase capacity
-        {
-            Log.Info("No truck stations with excessive waiting cargo.", Log.LVL_SUB_DECISIONS);
-            return -1;    
-        }
-        masterList.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING); //starting with the busiest station, since we might run out of cash
+    if (masterList.IsEmpty()) // if the list is empty, then all stations are below 200 waiting cargo, no need to increase capacity
+    {
+        Log.Info("No truck stations with excessive waiting cargo.", Log.LVL_SUB_DECISIONS);
+        return -1;    
+    }
+    masterList.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING); //starting with the busiest station, since we might run out of cash
     
     for (local curStation = masterList.Begin(); masterList.HasNext(); curStation = masterList.Next())
-    {
-        local waiting = AIStation.GetCargoWaiting(curStation, this.passenger_cargo_id)
-        
+    {      
+        //calculate average profit for the route
+        local vehicles = AIVehicleList_Station(curStation);
+
+        if (vehicles.IsEmpty()) continue;
+
+        vehicles.Valuate(AIVehicle.GetAge); //how old are they?
+        vehicles.KeepAboveValue(365 * 2); //we only want to calculate on vehicles that have had two full years to run. this ensures last year's profit is a full year.
+
+        if (vehicles.IsEmpty()) continue; //young route? give it a chance.
+
+        vehicles.Valuate(AIVehicle.GetProfitLastYear);
+
+        local revenuetotal = 0;
+
+        for (local veh = vehicles.Begin(); vehicles.HasNext(); veh = vehicles.Next())
+        {
+            revenuetotal += vehicles.GetValue(veh);
+        }    
+
+        local meanprofit = revenuetotal / vehicles.Count(); //calculate the mean profit (total revenue divided by total vehicle count)
+        local vehPrice = AIEngine.GetPrice(AIVehicle.GetEngineType(vehicles.Begin()));
+                
+        if ((meanprofit * 3) < vehPrice)
+        {
+            Log.Info("There is cargo waiting at " + AIStation.GetName(curStation) + " but a new vehicle would not pay for itself within 3 years. Skipping.", Log.LVL_SUB_DECISIONS);
+            continue;
+        }    
+        else
+        {
+            Log.Info("A new vehicle for " + AIStation.GetName(curStation) + " will pay for itself in " + (vehPrice / meanprofit)+ " years.", Log.LVL_DEBUG);
+        }
        
         local vehList = AIVehicleList_Station(curStation); //make a list of vehicles at this station, so we can count them
             
@@ -225,6 +254,7 @@ function Cargo::ManageBusyTruckStations()
             Road.GrowStation(curStation, AIStation.STATION_TRUCK_STOP);
             Road.GrowStation(this.station_pairs.GetValue(curStation), AIStation.STATION_TRUCK_STOP); //the other end of this route
         }    
+
         CloneVehicleByStation(curStation);
     }    
 }   
