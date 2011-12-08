@@ -168,6 +168,12 @@ function Cargo::BuildCargoRoute(indStart, indEnd, cargoType)
     this.industries_used.AddItem(indStart, AIIndustry.GetLocation(indStart));
     this.industries_used.AddItem(indEnd, AIIndustry.GetLocation(indEnd));
     
+    //record the station/industry mapping, for later closures etc.
+    this.stations_by_industry.AddItem(indStart, AIStation.GetStationID(startStationTile));
+    this.industries_by_station.AddItem(AIStation.GetStationID(startStationTile), indStart);
+    this.stations_by_industry.AddItem(indEnd, AIStation.GetStationID(endStationTile));
+    this.industries_by_station.AddItem(AIStation.GetStationID(endStationTile), indEnd);
+    
     this.last_route_tick = TeshiNet.GetTick(); //record time of route creation
     
     //record the depots for these stations

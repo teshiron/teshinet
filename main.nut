@@ -1,5 +1,5 @@
-import("pathfinder.road", "RoadPathFinder", 3);
 import("util.superlib", "SuperLib", 16); // Import SuperLib version 16
+import("Queue.Priority_Queue", "Priority_Queue", 2); //import PriorityQueue
 
 Helper <- SuperLib.Helper;
 Tile <- SuperLib.Tile;
@@ -10,7 +10,6 @@ RoadBuilder <- SuperLib.RoadBuilder;
 Road <- SuperLib.Road;
 Result <- SuperLib.Result;
 Station <- SuperLib.Station;
-
 
 require("cargo.nut");
 require("planes.nut");
@@ -37,6 +36,9 @@ class TeshiNet extends AIController
     last_air_route = -1200;
     last_plane_check = 1000;
     disable_buses = false;
+    event_queue = null;
+    stations_by_industry = null;
+    industries_by_station = null;
     
     constructor()
     {
@@ -47,6 +49,9 @@ class TeshiNet extends AIController
         this.station_pairs = AIList();
         this.at_max_RV_count = false;
         this.cargo_list = AICargoList();
+        this.event_queue = Priority_Queue();
+        this.stations_by_industry = AIList();
+        this.industries_by_station = AIList();
         
         if (AIController.GetSetting("enable_buses") == 0) disable_buses = true;
                
@@ -99,6 +104,36 @@ function TeshiNet::Start()
     {
         local skipNewRoute = false;
         local skipPlaneRoute = false;
+        
+        while (AIEventController.IsEventWaiting()) //Event handler -- get relevant events and queue them up for handling, by priority
+        {
+            local event = AIEventController.GetNextEvent();
+            switch (event.GetEventType())
+            {
+                case AIEvent.AI_ET_INDUSTRY_CLOSE:
+                    local closeEvent = AIEventIndustryClose.Convert(event);
+                    local closedInd = closeEvent.GetIndustryID();                                     
+                    if (this.stations_by_industry.HasItem(closedInd))
+                    {
+                        this.event_queue.Insert(event, 5);
+                        Log.Info("Queued an industry closure.", Log.LVL_DEBUG);
+                    }    
+                    break;
+                    
+                case AIEvent.AI_ET_VEHICLE_UNPROFITABLE:
+                    this.event_queue.Insert(event, 3);
+                    Log.Info("Queued an unprofitable vehicle notification.", Log.LVL_DEBUG);
+                    break;
+                    
+                case AIEvent.AI_ET_VEHICLE_CRASHED:
+                    this.event_queue.Insert(event, 1);
+                    Log.Info("Queued a vehicle crash.", Log.LVL_DEBUG);
+                    break;
+                    
+                default:
+                    break;
+            }
+        }
         
         if (this.towns_used.IsEmpty() && this.industries_used.IsEmpty()) //get a loan if we're a new company
         {
@@ -228,8 +263,51 @@ function TeshiNet::Start()
             this.last_unprof_route_check = this.GetTick();
         }    
         
-        
-        //TODO: handle crashed vehicles, perhaps with a priority queue - clone the crashed veh?
+        //Handle a queued event
+        if (this.event_queue.Count() > 0)
+        {
+            local event = this.event_queue.Pop();
+            switch (event.GetEventType())
+            {
+                case AIEvent.AI_ET_INDUSTRY_CLOSE:
+                    local closeEvent = AIEventIndustryClose.Convert(event);
+                    local closedInd = closeEvent.GetIndustryID();                                     
+                    
+                    //although we checked if we serve the industry when we queued the closure event, it's remotely possible
+                    //that we might have already removed the affected route, so let's check again before removing
+                    
+                    if (this.stations_by_industry.HasItem(closedInd)) 
+                    {
+                        local station = this.stations_by_industry.GetValue(closedInd);
+                        Log.Info("Station " + AIStation.GetName(station) + " serves an industry which is closing. Removing route.", Log.LVL_INFO);
+                        RemoveRoadRoute(station, this.station_pairs.GetValue(station));
+                    }
+                    else
+                    {
+                        Log.Info("Queued industry closing message does not affect us.", Log.LVL_DEBUG);
+                    }    
+                    break;
+                
+                case AIEvent.AI_ET_VEHICLE_UNPROFITABLE:
+                    Log.Info("Unprofitable vehicle message was queued. Handler not yet written.", Log.LVL_DEBUG);
+                    break;
+                
+                case AIEvent.AI_ET_VEHICLE_CRASHED:
+                    local crashEvent = AIEventVehicleCrashed.Convert(event);
+                    local vehicle = crashEvent.GetVehicleID();
+                    
+                    local station = AIStation.GetStationID(AIOrder.GetOrderDestination(vehicle, 0));
+                                        
+                    Log.Info("Vehicle crashed. Cloning replacement vehicle.", Log.LVL_INFO);
+                    
+                    CloneVehicleByStation(station);
+                    
+                    break;
+                
+                default:
+                    Log.Error("An incorrect event was queued.", Log.LVL_INFO);
+            }    
+        }         
         
         Log.Info("End of main loop: tick " + this.GetTick(), Log.LVL_DEBUG);
         
@@ -249,6 +327,8 @@ function TeshiNet::Save()
     local industriesused = [];
     local sta_dep_pairs = {};
     local sta_pairs = {};
+    local sta_by_ind = {};
+    local ind_by_sta = {};
         
     for (local x = this.towns_used.Begin(); this.towns_used.HasNext(); x = this.towns_used.Next())
     {
@@ -270,12 +350,24 @@ function TeshiNet::Save()
         sta_pairs.rawset(z, this.station_pairs.GetValue(z));
     }    
     
+    for (local q = this.industries_by_station.Begin(); this.industries_by_station.HasNext(); q = this.industries_by_station.Next())
+    {
+        ind_by_sta.rawset(q, this.industries_by_station.GetValue(q));
+    }
+    
+    for (local p = this.stations_by_industry.Begin(); this.stations_by_industry.HasNext(); p = this.stations_by_industry.Next())
+    {
+        sta_by_ind.rawset(p, this.industries_by_station.GetValue(p));
+    }
+    
     savedata.rawset("townsused", townsused);
     savedata.rawset("industriesused", industriesused);
     savedata.rawset("sta_dep_pairs", sta_dep_pairs);
     savedata.rawset("sta_pairs", sta_pairs);
     savedata.rawset("last_cargo", this.last_cargo);
     savedata.rawset("last_route_type", last_route_type);
+    savedata.rawset("sta_by_ind", sta_by_ind);
+    savedata.rawset("ind_by_sta", ind_by_sta);
     
     Log.Info("Done!", Log.LVL_DEBUG);
     return savedata;
@@ -327,6 +419,24 @@ function TeshiNet::Load(version, data)
         this.station_pairs.AddItem(a, b);
     }    
     
+    if (data.rawin("sta_by_ind"))
+    {
+        local sta_by_ind = data.rawget("sta_by_ind");
+        foreach (t, r in sta_by_ind)
+        {
+            this.stations_by_industry.AddItem(t, r);
+        }
+    }
+    
+    if (data.rawin("ind_by_sta"))
+    {
+        local ind_by_sta = data.rawget("ind_by_sta");
+        foreach (p, q in ind_by_sta)
+        {
+            this.industries_by_station.AddItem(p, q);
+        }
+    }    
+            
     if (data.rawin("last_cargo")) this.last_cargo = data.rawget("last_cargo");
     if (data.rawin("last_route_type")) this.last_route_type = data.rawget("last_route_type");
     
@@ -1126,15 +1236,24 @@ function TeshiNet::RemoveRoadRoute(start_station, end_station)
     
     Log.Info("Vehicles sold; removing stations.", Log.LVL_SUB_DECISIONS);
     
-    if (passRoute)
+    if (passRoute) //clean up our indexes
     {
         this.towns_used.RemoveItem(AITile.GetClosestTown(AIStation.GetLocation(deadRouteStart)));
         this.towns_used.RemoveItem(AITile.GetClosestTown(AIStation.GetLocation(deadRouteEnd)));
     }
+    else
+    {   
+        local indStart = this.industries_by_station.GetValue(deadRouteStart);
+        local indEnd = this.industries_by_station.GetValue(deadRouteEnd);
+        this.industries_by_station.RemoveItem(deadRouteStart);
+        this.industries_by_station.RemoveItem(deadRouteEnd);
+        this.stations_by_industry.RemoveItem(indStart);
+        this.stations_by_industry.RemoveItem(indEnd);        
+    }    
     
     //Use SuperLib station removal routines
     Station.DemolishStation(deadRouteStart);
-    Station.DemolishStation(deadRouteEnd)
+    Station.DemolishStation(deadRouteEnd);
     
     AIRoad.RemoveRoadDepot(depotLoc); //remove the start depot, we already know its location
      
@@ -1142,7 +1261,7 @@ function TeshiNet::RemoveRoadRoute(start_station, end_station)
      
     AIRoad.RemoveRoadDepot(depotLoc); //remove it
         
-    this.station_pairs.RemoveItem(deadRouteStart); //clean up our tables
+    this.station_pairs.RemoveItem(deadRouteStart); //clean up our indexes
     this.station_depot_pairs.RemoveItem(deadRouteStart);
     this.station_pairs.RemoveItem(deadRouteEnd);
     this.station_depot_pairs.RemoveItem(deadRouteEnd);
@@ -1423,6 +1542,12 @@ function TeshiNet::RemoveUnprofitableRoadRoute()
     
     local staList = AIStationList(AIStation.STATION_BUS_STOP);
     
+    //remove the other ends of the routes, so we only calculate each once
+    //for (local pair = staList.Begin(); staList.HasNext(); pair = staList.Next())
+    //{
+    //    staList.RemoveItem(this.station_pairs.GetValue(pair));
+    //}    
+    
     for (local route = staList.Begin(); staList.HasNext(); route = staList.Next()) //iterate through our bus stations
     {
         local vehicles = AIVehicleList_Station(route);
@@ -1495,5 +1620,6 @@ function TeshiNet::RemoveUnprofitableRoadRoute()
         Log.Info("The average profit per vehicle last year was " + routeProfits.GetValue(deadRoute) + " pounds on this route.", Log.LVL_SUB_DECISIONS);
 
         RemoveRoadRoute(deadRouteStart, deadRouteEnd);
+        routeProfits.RemoveItem(deadRouteEnd);
     }
 }
