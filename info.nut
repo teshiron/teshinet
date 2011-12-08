@@ -3,9 +3,9 @@
    function GetAuthor()      { return "Teshiron"; }
    function GetName()        { return "TeshiNet"; }
    function GetDescription() { return "An AI primarily using road vehicles, can transport most types of cargo."; }
-   function GetVersion()     { return 2; }
+   function GetVersion()     { return 3; }
    function MinVersionToLoad() { return 1; }
-   function GetDate()        { return "2011-12-04"; }
+   function GetDate()        { return "2011-12-07"; }
    function CreateInstance() { return "TeshiNet"; }
    function GetShortName()   { return "TESH"; }
    function GetAPIVersion()  { return "1.0"; }
