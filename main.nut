@@ -110,7 +110,7 @@ function TeshiNet::Start()
         if (this.at_max_RV_count) //if we've run out of road vehicles, remove the least profitable road route
         {
             RemoveLeastProfRoadRoute();
-            RemoveUnproftiableRoadRoute();
+            RemoveUnprofitableRoadRoute();
             SellUnusedVehicles();
             this.at_max_RV_count = false;
             this.last_unprof_route_check = this.GetTick();
