@@ -756,7 +756,7 @@ function TeshiNet::BuildPassengerRoute(townStart, townEnd)
     endDepotTile = endReturn.depot_tile;
 
     //Did they both actually get built?
-    if (startStationID > 0 && endStationID > 0)
+    if (AIStation.IsValidStation(startStationID) && AIStation.IsValidStation(endStationID))
     {
         startStationTile = AIStation.GetLocation(startStationID);
         endStationTile = AIStation.GetLocation(endStationID);       
