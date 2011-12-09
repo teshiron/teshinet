@@ -105,7 +105,7 @@ function TeshiNet::Start()
         local skipNewRoute = false;
         local skipPlaneRoute = false;
         
-        while (AIEventController.IsEventWaiting()) //Event handler -- get relevant events and queue them up for handling, by priority
+        while (AIEventController.IsEventWaiting()) //Event handler: get relevant events and queue them up for handling, by priority
         {
             local event = AIEventController.GetNextEvent();
             switch (event.GetEventType())
@@ -141,7 +141,13 @@ function TeshiNet::Start()
             local tmp = AICompany.GetMaxLoanAmount();
             AICompany.SetMinimumLoanAmount(tmp.tointeger());
         }    
-        
+
+        if (this.event_queue.Count() > 0)
+        {
+            skipNewRoute = true; //do not build a new route with queued events -- new vehicles may mess up events
+            skipPlaneRoute = true;
+        }    
+
         if (this.at_max_RV_count) //if we've run out of road vehicles, remove the least profitable road route
         {
             RemoveLeastProfRoadRoute();
@@ -163,17 +169,24 @@ function TeshiNet::Start()
                 
         if (this.GetTick() > (this.last_route_manage_tick + 1400) && (AICompany.GetBankBalance(AICompany.COMPANY_SELF) > 50000))
         {
-            Log.Info("Managing existing routes.", Log.LVL_INFO);
+            if (this.event_queue.Count() > 0)
+            {
+                Log.Info("No route management while queued events are pending.", Log.LVL_INFO); //building new vehicles will mess up events
+            }
+            else
+            {
+                Log.Info("Managing existing routes.", Log.LVL_INFO);
 
-            ManageBusyBusStations();
+                ManageBusyBusStations();
 
-            Cargo.ManageBusyTruckStations();
+                Cargo.ManageBusyTruckStations();
 
-            Planes.ManageBusyAirports();
+                Planes.ManageBusyAirports();
 
-            Log.Info("Done managing routes.", Log.LVL_INFO);
+                Log.Info("Done managing routes.", Log.LVL_INFO);
 
-            this.last_route_manage_tick = this.GetTick();
+                this.last_route_manage_tick = this.GetTick();
+            }
         }    
 
         //Build a new road route if there's enough cash.
@@ -195,9 +208,7 @@ function TeshiNet::Start()
                 if (ret != -1) this.last_air_route = this.GetTick();
             }    
         }    
-        
-        skipNewRoute = false;
-             
+                     
         if (this.GetTick() > (this.last_plane_check + 1250))
         {
             //TODO: find planes with only one order and remove the airport -- the route was not built right.
@@ -289,7 +300,67 @@ function TeshiNet::Start()
                     break;
                 
                 case AIEvent.AI_ET_VEHICLE_UNPROFITABLE:
-                    Log.Info("Unprofitable vehicle message was queued. Handler not yet written.", Log.LVL_DEBUG);
+                    local vehicleEvent = AIEventVehicleUnprofitable.Convert(event);
+                    local veh = vehicleEvent.GetVehicleID();
+                    local station = AIStation.GetStationID(AIOrder.GetOrderDestination(veh, 0));
+                    local dest = this.station_pairs.GetValue(station);
+                    local depotLoc = this.station_depot_pairs.GetValue(AIStation.GetLocation(station));
+                    
+                    if (!AIVehicle.IsValidVehicle(veh))
+                    {
+                        Log.Info("We queued an unprofitable vehicle message, but it has already been sold or destroyed.", Log.LVL_INFO);
+                        break;
+                    }    
+                    
+                    Log.Info(AIVehicle.GetName(veh) + " serving " + AIStation.GetName(station) + " did not turn a profit last year.", Log.LVL_INFO);
+                    
+                    if (IsRouteProfitable(station)) //if the route overall is profitable, just remove this vehicle
+                    {
+                        Log.Info("The route overall is profitable. Removing just this vehicle.", Log.LVL_SUB_DECISIONS);
+                        //Log.Info("Station ID " + station + ", depot tile index " + depotLoc, Log.LVL_DEBUG);
+                        
+                        AIOrder.UnshareOrders(veh); //unshare orders
+
+                        do //delete existing orders
+                        {
+                            AIOrder.RemoveOrder(veh, 0);
+                        } while (AIOrder.GetOrderCount(veh) > 0)
+
+                        local order = AIOrder.AppendOrder(veh, depotLoc, AIOrder.AIOF_STOP_IN_DEPOT); //send to depot
+                        
+                        if (!order)
+                        {
+                            if (!AIVehicle.SendVehicleToDepot(veh))
+                            {
+                                Log.Error("Unable to send vehicle to depot. It will be picked up by next no-orders check.", Log.LVL_SUB_DECISIONS);
+                                break;
+                            }
+                            
+                        }    
+                        
+                        this.Sleep(150); //give it a little time
+                        
+                        local timeout = 0;
+                        
+                        do //wait for it to arrive, and sell it
+                        {
+                            if (AIVehicle.IsStoppedInDepot(veh))
+                            {
+                                AIVehicle.SellVehicle(veh);
+                            }
+                            else
+                            {
+                                this.Sleep(150);
+                            }
+                            timeout++
+                        } while (AIVehicle.IsValidVehicle(veh) && timeout < 50)
+                    }
+                    else //otherwise, kill the whole route
+                    {
+                        Log.Info("The whole route is unprofitable as an average. Removing the route.", Log.LVL_SUB_DECISIONS);
+                        RemoveRoadRoute(station, dest);
+                    }    
+                                        
                     break;
                 
                 case AIEvent.AI_ET_VEHICLE_CRASHED:
@@ -1623,3 +1694,35 @@ function TeshiNet::RemoveUnprofitableRoadRoute()
         routeProfits.RemoveItem(deadRouteEnd);
     }
 }
+
+function TeshiNet::IsRouteProfitable(startStation)
+{
+    local vehicles = AIVehicleList_Station(startStation);
+
+    if (vehicles.IsEmpty()) return true;
+
+    vehicles.Valuate(AIVehicle.GetAge); //how old are they?
+    vehicles.KeepAboveValue(365 * 2); //we only want to calculate on vehicles that have had two full years to run. this ensures last year's profit is a full year.
+
+    if (vehicles.IsEmpty()) return true; //young route? give it a chance.
+
+    vehicles.Valuate(AIVehicle.GetProfitLastYear);
+
+    local revenuetotal = 0;
+
+    for (local veh = vehicles.Begin(); vehicles.HasNext(); veh = vehicles.Next())
+    {
+        revenuetotal += vehicles.GetValue(veh);
+    }    
+
+    local meanprofit = revenuetotal / vehicles.Count(); //calculate the mean profit (total revenue divided by total vehicle count)    
+    
+    if (meanprofit >= 0)
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}    
