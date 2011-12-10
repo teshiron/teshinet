@@ -39,6 +39,7 @@ class TeshiNet extends AIController
     event_queue = null;
     stations_by_industry = null;
     industries_by_station = null;
+    last_upgrade_search = 0;
     
     constructor()
     {
@@ -272,6 +273,13 @@ function TeshiNet::Start()
         {
             RemoveUnprofitableRoadRoute();
             this.last_unprof_route_check = this.GetTick();
+        }    
+        
+        if (this.GetTick() > this.last_upgrade_search + 30000)
+        {
+            UpgradeRoadVehicles();
+            //Planes.UpgradePlanes(); (not implemented yet)
+            this.last_upgrade_search = this.GetTick();
         }    
         
         //Handle a queued event
@@ -1726,3 +1734,65 @@ function TeshiNet::IsRouteProfitable(startStation)
         return false;
     }
 }    
+
+function TeshiNet::UpgradeRoadVehicles()
+{
+    //make a list of all engine types currently in use
+    //evaluate each to see if an upgrade is available, replace if so
+    
+    Log.Info("Searching for road vehicle upgrades.", Log.LVL_INFO);
+    
+    local enginesInUse = [];
+    local vehicles = AIVehicleList();
+    local engine = 0;
+    
+    vehicles.Valuate(AIVehicle.GetVehicleType);
+    vehicles.KeepValue(AIVehicle.VT_ROAD);
+    
+    vehicles.Valuate(AIVehicle.GetEngineType);
+    vehicles.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
+
+    for (local x = vehicles.Begin(); vehicles.HasNext(); x = vehicles.Next())
+    {
+        enginesInUse.push(vehicles.GetValue(x));
+        vehicles.RemoveValue(vehicles.GetValue(x));
+    }    
+    
+    foreach (engine in enginesInUse)
+    {
+        local cargo = AIEngine.GetCargoType(engine);
+        local possReplace = AIEngineList(AIVehicle.VT_ROAD);
+        
+        possReplace.Valuate(AIEngine.GetCargoType);
+        possReplace.KeepValue(cargo);
+        
+        if (possReplace.IsEmpty()) //no vehicles for this cargo?
+        {
+            possReplace = AIEngineList(AIVehicle.VT_ROAD); //repopulate the list
+            possReplace.Valuate(AIEngine.CanRefitCargo, cargo); //look for vehicles that can be refit instead
+            possReplace.KeepValue(1);
+        }                
+        
+        if (possReplace.IsEmpty()) //still empty?
+        {
+            continue;
+        }
+        
+        possReplace.Valuate(AIEngine.IsArticulated); //no articulated vehicles
+        possReplace.KeepValue(0);
+        
+        possReplace.Valuate(AIEngine.GetMaxSpeed);
+        possReplace.KeepTop(1);
+        
+        local candidate = possReplace.Begin();
+        
+        if (possReplace.GetValue(candidate) > AIEngine.GetMaxSpeed(engine))
+        {
+            //the fastest vehicle for this cargo is faster than one we are using. let's replace them
+            AIGroup.SetAutoReplace(AIGroup.GROUP_ALL, engine, candidate);
+            Log.Info("Replacing " + AIEngine.GetName(engine) + " with " + AIEngine.GetName(candidate), Log.LVL_INFO);
+        }        
+    }
+    
+    Log.Info("Road vehicle upgrade search complete.", Log.LVL_INFO);
+}
