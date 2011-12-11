@@ -285,129 +285,7 @@ function TeshiNet::Start()
         //Handle a queued event
         if (this.event_queue.Count() > 0)
         {
-            local event = this.event_queue.Pop();
-            switch (event.GetEventType())
-            {
-                case AIEvent.AI_ET_INDUSTRY_CLOSE:
-                    local closeEvent = AIEventIndustryClose.Convert(event);
-                    local closedInd = closeEvent.GetIndustryID();
-
-                    //although we checked if we serve the industry when we queued the closure event, it's remotely possible
-                    //that we might have already removed the affected route, so let's check again before removing
-
-                    if (this.stations_by_industry.HasItem(closedInd))
-                    {
-                        local station = this.stations_by_industry.GetValue(closedInd);
-                        Log.Info("Station " + AIStation.GetName(station) + " serves an industry which is closing. Removing route.", Log.LVL_INFO);
-                        RemoveRoadRoute(station, this.station_pairs.GetValue(station));
-                    }
-                    else
-                    {
-                        Log.Info("Queued industry closing message does not affect us.", Log.LVL_DEBUG);
-                    }
-                    break;
-
-                case AIEvent.AI_ET_VEHICLE_UNPROFITABLE:
-                    local vehicleEvent = AIEventVehicleUnprofitable.Convert(event);
-                    local veh = vehicleEvent.GetVehicleID();
-                    local station = AIStation.GetStationID(AIOrder.GetOrderDestination(veh, 0));
-                    local dest = this.station_pairs.GetValue(station);
-                    local depotLoc = this.station_depot_pairs.GetValue(AIStation.GetLocation(station));
-
-                    if (!AIVehicle.IsValidVehicle(veh))
-                    {
-                        Log.Info("We queued an unprofitable vehicle message, but it has already been sold or destroyed.", Log.LVL_INFO);
-                        break;
-                    }
-
-                    Log.Info(AIVehicle.GetName(veh) + " serving " + AIStation.GetName(station) + " did not turn a profit last year.", Log.LVL_INFO);
-
-                    if (IsRouteProfitable(station)) //if the route overall is profitable, just remove this vehicle
-                    {
-                        Log.Info("The route overall is profitable. Removing just this vehicle.", Log.LVL_SUB_DECISIONS);
-                        //Log.Info("Station ID " + station + ", depot tile index " + depotLoc, Log.LVL_DEBUG);
-
-                        if (!AIVehicle.SendVehicleToDepot(veh))
-                        {
-                            AIOrder.UnshareOrders(veh); //unshare orders
-
-                            do //delete existing orders
-                            {
-                                AIOrder.RemoveOrder(veh, 0);
-                            } while (AIOrder.GetOrderCount(veh) > 0)
-
-                            local order = AIOrder.AppendOrder(veh, depotLoc, AIOrder.AIOF_STOP_IN_DEPOT); //send to depot
-
-                            if (!order)
-                            {
-                                Log.Error("Unable to send vehicle to depot. It will be picked up by next no-orders check.", Log.LVL_SUB_DECISIONS);
-                                break;
-                            }
-
-                        }
-
-                        this.Sleep(150); //give it a little time
-
-                        local timeout = 0;
-
-                        do //wait for it to arrive, and sell it
-                        {
-                            if (AIVehicle.IsStoppedInDepot(veh))
-                            {
-                                AIVehicle.SellVehicle(veh);
-                            }
-                            else
-                            {
-                                this.Sleep(150);
-                            }
-                            timeout++
-                        } while (AIVehicle.IsValidVehicle(veh) && timeout < 50)
-                    }
-                    else //otherwise, kill the whole route
-                    {
-                        Log.Info("The whole route is unprofitable as an average. Removing the route.", Log.LVL_SUB_DECISIONS);
-                        RemoveRoadRoute(station, dest);
-                    }
-
-                    break;
-
-                case AIEvent.AI_ET_VEHICLE_CRASHED:
-                    local crashEvent = AIEventVehicleCrashed.Convert(event);
-                    local vehicle = crashEvent.GetVehicleID();
-
-                    if (!AIVehicle.IsValidVehicle(vehicle))
-                    {
-                        Log.Info("Vehicle crashed, but the wreck cleared before we handled the event. Unable to replace vehicle.", Log.LVL_INFO);
-                        break;
-                    }
-
-                    local location = crashEvent.GetCrashSite();
-                    local reason = crashEvent.GetCrashReason();
-                    local station = AIStation.GetStationID(AIOrder.GetOrderDestination(vehicle, 0));
-
-                    Log.Info("Vehicle crashed. Cloning replacement vehicle.", Log.LVL_INFO);
-                    CloneVehicleByStation(station);
-
-                    if (reason == AIEventVehicleCrashed.CRASH_RV_LEVEL_CROSSING)
-                    {
-                        Log.Info("Crash was due to a level crossing. Attempting to grade-separate crossing.", Log.LVL_INFO);
-                        local result = GradeSeparateCrossing(location);
-
-                        if (result == 1)
-                        {
-                            Log.Info("Grade separation successful.", Log.LVL_INFO);
-                        }
-                        else
-                        {
-                            Log.Info("Grade separation unsuccessful.", Log.LVL_INFO);
-                        }
-                    }
-
-                    break;
-
-                default:
-                    Log.Error("An incorrect event was queued.", Log.LVL_INFO);
-            }
+            EventHandler();
         }
 
         Log.Info("End of main loop: tick " + this.GetTick(), Log.LVL_DEBUG);
@@ -1812,5 +1690,132 @@ function TeshiNet::GradeSeparateCrossing(tile_index)
     else
     {
         return 0;
+    }
+}
+
+function TeshiNet::EventHandler()
+{
+    local event = this.event_queue.Pop();
+    switch (event.GetEventType())
+    {
+        case AIEvent.AI_ET_INDUSTRY_CLOSE:
+            local closeEvent = AIEventIndustryClose.Convert(event);
+            local closedInd = closeEvent.GetIndustryID();
+
+            //although we checked if we serve the industry when we queued the closure event, it's remotely possible
+            //that we might have already removed the affected route, so let's check again before removing
+
+            if (this.stations_by_industry.HasItem(closedInd))
+            {
+                local station = this.stations_by_industry.GetValue(closedInd);
+                Log.Info("Station " + AIStation.GetName(station) + " serves an industry which is closing. Removing route.", Log.LVL_INFO);
+                RemoveRoadRoute(station, this.station_pairs.GetValue(station));
+            }
+            else
+            {
+                Log.Info("Queued industry closing message does not affect us.", Log.LVL_DEBUG);
+            }
+            break;
+
+        case AIEvent.AI_ET_VEHICLE_UNPROFITABLE:
+            local vehicleEvent = AIEventVehicleUnprofitable.Convert(event);
+            local veh = vehicleEvent.GetVehicleID();
+            local station = AIStation.GetStationID(AIOrder.GetOrderDestination(veh, 0));
+            local dest = this.station_pairs.GetValue(station);
+            local depotLoc = this.station_depot_pairs.GetValue(AIStation.GetLocation(station));
+
+            if (!AIVehicle.IsValidVehicle(veh))
+            {
+                Log.Info("We queued an unprofitable vehicle message, but it has already been sold or destroyed.", Log.LVL_INFO);
+                break;
+            }
+
+            Log.Info(AIVehicle.GetName(veh) + " serving " + AIStation.GetName(station) + " did not turn a profit last year.", Log.LVL_INFO);
+
+            if (IsRouteProfitable(station)) //if the route overall is profitable, just remove this vehicle
+            {
+                Log.Info("The route overall is profitable. Removing just this vehicle.", Log.LVL_SUB_DECISIONS);
+                //Log.Info("Station ID " + station + ", depot tile index " + depotLoc, Log.LVL_DEBUG);
+
+                if (!AIVehicle.SendVehicleToDepot(veh))
+                {
+                    AIOrder.UnshareOrders(veh); //unshare orders
+
+                    do //delete existing orders
+                    {
+                        AIOrder.RemoveOrder(veh, 0);
+                    } while (AIOrder.GetOrderCount(veh) > 0)
+
+                    local order = AIOrder.AppendOrder(veh, depotLoc, AIOrder.AIOF_STOP_IN_DEPOT); //send to depot
+
+                    if (!order)
+                    {
+                        Log.Error("Unable to send vehicle to depot. It will be picked up by next no-orders check.", Log.LVL_SUB_DECISIONS);
+                        break;
+                    }
+
+                }
+
+                this.Sleep(150); //give it a little time
+
+                local timeout = 0;
+
+                do //wait for it to arrive, and sell it
+                {
+                    if (AIVehicle.IsStoppedInDepot(veh))
+                    {
+                        AIVehicle.SellVehicle(veh);
+                    }
+                    else
+                    {
+                        this.Sleep(150);
+                    }
+                    timeout++
+                } while (AIVehicle.IsValidVehicle(veh) && timeout < 50)
+            }
+            else //otherwise, kill the whole route
+            {
+                Log.Info("The whole route is unprofitable as an average. Removing the route.", Log.LVL_SUB_DECISIONS);
+                RemoveRoadRoute(station, dest);
+            }
+
+            break;
+
+        case AIEvent.AI_ET_VEHICLE_CRASHED:
+            local crashEvent = AIEventVehicleCrashed.Convert(event);
+            local vehicle = crashEvent.GetVehicleID();
+
+            if (!AIVehicle.IsValidVehicle(vehicle))
+            {
+                Log.Info("Vehicle crashed, but the wreck cleared before we handled the event. Unable to replace vehicle.", Log.LVL_INFO);
+                break;
+            }
+
+            local location = crashEvent.GetCrashSite();
+            local reason = crashEvent.GetCrashReason();
+            local station = AIStation.GetStationID(AIOrder.GetOrderDestination(vehicle, 0));
+
+            Log.Info("Vehicle crashed. Cloning replacement vehicle.", Log.LVL_INFO);
+            CloneVehicleByStation(station);
+
+            if (reason == AIEventVehicleCrashed.CRASH_RV_LEVEL_CROSSING) //was this a truck run over by a train?
+            {
+                Log.Info("Crash was due to a level crossing. Attempting to grade-separate crossing.", Log.LVL_INFO);
+                local result = GradeSeparateCrossing(location);
+
+                if (result == 1)
+                {
+                    Log.Info("Grade separation successful.", Log.LVL_INFO);
+                }
+                else
+                {
+                    Log.Info("Grade separation unsuccessful.", Log.LVL_INFO);
+                }
+            }
+
+            break;
+
+        default:
+            Log.Error("An incorrect event was queued.", Log.LVL_INFO);
     }
 }
