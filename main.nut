@@ -10,6 +10,7 @@ RoadBuilder <- SuperLib.RoadBuilder;
 Road <- SuperLib.Road;
 Result <- SuperLib.Result;
 Station <- SuperLib.Station;
+Direction <- SuperLib.Direction;
 
 require("cargo.nut");
 require("planes.nut");
@@ -374,11 +375,33 @@ function TeshiNet::Start()
                     local crashEvent = AIEventVehicleCrashed.Convert(event);
                     local vehicle = crashEvent.GetVehicleID();
 
+                    if (!AIVehicle.IsValidVehicle(vehicle))
+                    {
+                        Log.Info("Vehicle crashed, but the wreck cleared before we handled the event. Unable to replace vehicle.", Log.LVL_INFO);
+                        break;
+                    }
+
+                    local location = crashEvent.GetCrashSite();
+                    local reason = crashEvent.GetCrashReason();
                     local station = AIStation.GetStationID(AIOrder.GetOrderDestination(vehicle, 0));
 
                     Log.Info("Vehicle crashed. Cloning replacement vehicle.", Log.LVL_INFO);
-
                     CloneVehicleByStation(station);
+
+                    if (reason == AIEventVehicleCrashed.CRASH_RV_LEVEL_CROSSING)
+                    {
+                        Log.Info("Crash was due to a level crossing. Attempting to grade-separate crossing.", Log.LVL_INFO);
+                        local result = GradeSeparateCrossing(location);
+
+                        if (result == 1)
+                        {
+                            Log.Info("Grade separation successful.", Log.LVL_INFO);
+                        }
+                        else
+                        {
+                            Log.Info("Grade separation unsuccessful.", Log.LVL_INFO);
+                        }
+                    }
 
                     break;
 
@@ -1761,4 +1784,33 @@ function TeshiNet::UpgradeRoadVehicles()
     }
 
     Log.Info("Road vehicle upgrade search complete.", Log.LVL_INFO);
+}
+
+function TeshiNet::GradeSeparateCrossing(tile_index)
+{
+    local prevRoad = null;
+    local candidate = null;
+    local dirList = Direction.GetMainDirsInRandomOrder();
+
+    for (local dir = dirList.Begin(); dirList.HasNext(); dir = dirList.Next()) //find the neighbor road to pass to the bridge function
+    {
+        candidate = Direction.GetAdjacentTileInDirection(tile_index, dir);
+
+        if (AIRoad.IsRoadTile(candidate))
+        {
+            prevRoad = candidate;
+            break;
+        }
+    }
+
+    local result = Road.ConvertRailCrossingToBridge(tile_index, prevRoad);
+
+    if (result.succeeded == true)
+    {
+        return 1;
+    }
+    else
+    {
+        return 0;
+    }
 }
