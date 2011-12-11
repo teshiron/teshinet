@@ -27,7 +27,7 @@ class TeshiNet extends AIController
     station_depot_pairs = null;
     last_route_manage_tick = 0;
     station_pairs = null;
-    last_dead_station_check = 2000;
+    last_dead_station_check = 0;
     at_max_RV_count = null;
     at_max_plane_count = null;
     cargo_list = null;
@@ -1335,16 +1335,41 @@ function TeshiNet::GetIndustryPair()
 
 function TeshiNet::SellUnusedVehicles() //find vehicles without orders, send them to the depot, and sell them
 {
-    Log.Info("Selling vehicles with no orders.", Log.LVL_INFO);
-
+    Log.Info("Selling vehicles with invalid or no orders.", Log.LVL_INFO);
+    local longList = AIList();
     local deadVehicles = AIVehicleList();
 
     deadVehicles.Valuate(AIOrder.GetOrderCount);
-    deadVehicles.KeepValue(0);
+    deadVehicles.KeepBelowValue(2); //keep only vehicles with 1 or 0 orders.
 
-    Log.Info("Found " + deadVehicles.Count() + " vehicles without orders.", Log.LVL_SUB_DECISIONS);
+    Log.Info("Found " + deadVehicles.Count() + " vehicles with either 1 or 0 orders.", Log.LVL_SUB_DECISIONS);
 
-    if (deadVehicles.Count() == 0)
+    longList.AddList(deadVehicles); //add the 0-order vehicles to the master list
+
+    deadVehicles = AIVehicleList(); //repopulate
+    deadVehicles.RemoveList(longList); //don't re-check the ones we've already found
+
+    local invalidCount = 0;
+
+    for (local curVeh = deadVehicles.Begin(); deadVehicles.HasNext(); curVeh = deadVehicles.Next())
+    {
+        local count = AIOrder.GetOrderCount(curVeh);
+        for (local i = 0; i < count; i++)
+        {
+            local dest = AIOrder.GetOrderDestination(curVeh, i);
+
+            if (!AIMap.IsValidTile(dest)) //is the order valid? if not, add the vehicle to the removal list
+            {
+                longList.AddItem(curVeh, 1);
+                invalidCount++;
+                break;
+            }
+        }
+    }
+
+    Log.Info("Found " + invalidCount + " vehicles with invalid orders.", Log.LVL_SUB_DECISIONS);
+
+    if (longList.Count() == 0)
     {
         return 1;
     }
@@ -1352,12 +1377,12 @@ function TeshiNet::SellUnusedVehicles() //find vehicles without orders, send the
     local sent = 0;
     local sentTotal = 0;
 
-    for (local curVeh = deadVehicles.Begin(); deadVehicles.HasNext(); curVeh = deadVehicles.Next())
+    for (local curVeh = longList.Begin(); longList.HasNext(); curVeh = longList.Next())
     {
         sent = AIVehicle.SendVehicleToDepot(curVeh);
         if (!sent)
         {
-            deadVehicles.RemoveItem(curVeh);
+            longList.RemoveItem(curVeh);
         }
         else
         {
@@ -1365,7 +1390,7 @@ function TeshiNet::SellUnusedVehicles() //find vehicles without orders, send the
         }
     }
 
-    Log.Info("Was able to send " + sentTotal + " of them to a depot.", Log.LVL_SUB_DECISIONS);
+    Log.Info("Was able to send " + sentTotal + " of these vehicles to a depot.", Log.LVL_SUB_DECISIONS);
 
     if (sentTotal == 0) //if we couldn't send any to the depot, we probably need to build a depot.
     {
@@ -1382,55 +1407,75 @@ function TeshiNet::SellUnusedVehicles() //find vehicles without orders, send the
     {
         local sold = 0;
 
-        for (local curVeh = deadVehicles.Begin(); deadVehicles.HasNext(); curVeh = deadVehicles.Next())
+        for (local curVeh = longList.Begin(); longList.HasNext(); curVeh = longList.Next())
         {
             if (AIVehicle.IsStoppedInDepot(curVeh))
             {
                 sold = AIVehicle.SellVehicle(curVeh);
                 if (sold)
                 {
-                    deadVehicles.RemoveItem(curVeh);
+                    longList.RemoveItem(curVeh);
                 }
             }
-
         }
-
 
         this.Sleep(100); //give the rest some more time
         timeout++;
 
-    } while (!deadVehicles.IsEmpty() && timeout < 45)
+    } while (!longList.IsEmpty() && timeout < 45)
 
     Log.Info("Recovered " + money.GetCosts() + " pounds by selling them.", Log.LVL_SUB_DECISIONS);
-
 }
 
 function TeshiNet::ForceSellUnusedVeh() //when the main function can't handle it, build a depot and try again
 {
     Log.Info("Trying to build a depot to sell these.", Log.LVL_SUB_DECISIONS);
-
+    local longList = AIList();
     local deadVehicles = AIVehicleList();
 
     deadVehicles.Valuate(AIOrder.GetOrderCount);
-    deadVehicles.KeepValue(0);
+    deadVehicles.KeepBelowValue(2); //keep only vehicles with 1 or 0 orders.
 
-    if (deadVehicles.Count() == 0)
+    longList.AddList(deadVehicles); //add the 0-order vehicles to the master list
+
+    deadVehicles = AIVehicleList(); //repopulate
+    deadVehicles.RemoveList(longList); //don't re-check the ones we've already found
+
+    local invalidCount = 0;
+
+    for (local curVeh = deadVehicles.Begin(); deadVehicles.HasNext(); curVeh = deadVehicles.Next())
+    {
+        local count = AIOrder.GetOrderCount(curVeh);
+        for (local i = 0; i < count; i++)
+        {
+            local dest = AIOrder.GetOrderDestination(curVeh, i);
+
+            if (!AIMap.IsValidTile(dest)) //is the order valid? if not, add the vehicle to the removal list
+            {
+                longList.AddItem(curVeh, 1);
+                invalidCount++;
+                break;
+            }
+        }
+    }
+
+    if (longList.Count() == 0)
     {
         return 1;
     }
 
     //build a depot
-    local depotLoc = Road.BuildDepotNextToRoad(AIVehicle.GetLocation(deadVehicles.Begin()), 1, 500);
+    local depotLoc = Road.BuildDepotNextToRoad(AIVehicle.GetLocation(longList.Begin()), 1, 500);
 
     local sent = 0;
     local sentTotal = 0;
 
-    for (local curVeh = deadVehicles.Begin(); deadVehicles.HasNext(); curVeh = deadVehicles.Next())
+    for (local curVeh = longList.Begin(); longList.HasNext(); curVeh = longList.Next())
     {
         sent = AIVehicle.SendVehicleToDepot(curVeh);
         if (!sent)
         {
-            deadVehicles.RemoveItem(curVeh);
+            longList.RemoveItem(curVeh);
         }
         else
         {
@@ -1455,29 +1500,26 @@ function TeshiNet::ForceSellUnusedVeh() //when the main function can't handle it
     {
         local sold = 0;
 
-        for (local curVeh = deadVehicles.Begin(); deadVehicles.HasNext(); curVeh = deadVehicles.Next())
+        for (local curVeh = longList.Begin(); longList.HasNext(); curVeh = longList.Next())
         {
             if (AIVehicle.IsStoppedInDepot(curVeh))
             {
                 sold = AIVehicle.SellVehicle(curVeh);
                 if (sold)
                 {
-                    deadVehicles.RemoveItem(curVeh);
+                    longList.RemoveItem(curVeh);
                 }
             }
-
         }
-
 
         this.Sleep(100); //give the rest some more time
         timeout++;
 
-    } while (!deadVehicles.IsEmpty() && timeout < 45)
+    } while (!longList.IsEmpty() && timeout < 45)
 
     AIRoad.RemoveRoadDepot(depotLoc);
 
     Log.Info("Recovered " + money.GetCosts() + " pounds by selling them.", Log.LVL_SUB_DECISIONS);
-
 }
 
 function TeshiNet::RemoveUnprofitableRoadRoute()
@@ -1487,12 +1529,6 @@ function TeshiNet::RemoveUnprofitableRoadRoute()
     local routeProfits = AIList(); //create a list to store the average profit of each route
 
     local staList = AIStationList(AIStation.STATION_BUS_STOP);
-
-    //remove the other ends of the routes, so we only calculate each once
-    //for (local pair = staList.Begin(); staList.HasNext(); pair = staList.Next())
-    //{
-    //    staList.RemoveItem(this.station_pairs.GetValue(pair));
-    //}
 
     for (local route = staList.Begin(); staList.HasNext(); route = staList.Next()) //iterate through our bus stations
     {
