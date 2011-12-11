@@ -327,18 +327,18 @@ function TeshiNet::Start()
                         Log.Info("The route overall is profitable. Removing just this vehicle.", Log.LVL_SUB_DECISIONS);
                         //Log.Info("Station ID " + station + ", depot tile index " + depotLoc, Log.LVL_DEBUG);
                         
-                        AIOrder.UnshareOrders(veh); //unshare orders
-
-                        do //delete existing orders
+                        if (!AIVehicle.SendVehicleToDepot(veh))
                         {
-                            AIOrder.RemoveOrder(veh, 0);
-                        } while (AIOrder.GetOrderCount(veh) > 0)
+                            AIOrder.UnshareOrders(veh); //unshare orders
 
-                        local order = AIOrder.AppendOrder(veh, depotLoc, AIOrder.AIOF_STOP_IN_DEPOT); //send to depot
+                            do //delete existing orders
+                            {
+                                AIOrder.RemoveOrder(veh, 0);
+                            } while (AIOrder.GetOrderCount(veh) > 0)
+
+                            local order = AIOrder.AppendOrder(veh, depotLoc, AIOrder.AIOF_STOP_IN_DEPOT); //send to depot
                         
-                        if (!order)
-                        {
-                            if (!AIVehicle.SendVehicleToDepot(veh))
+                            if (!order)
                             {
                                 Log.Error("Unable to send vehicle to depot. It will be picked up by next no-orders check.", Log.LVL_SUB_DECISIONS);
                                 break;
