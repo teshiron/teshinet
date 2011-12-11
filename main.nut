@@ -259,7 +259,7 @@ function TeshiNet::Start()
             }
         }
 
-        if (this.GetTick() > this.last_dead_station_check + 1500)
+        if (this.GetTick() > this.last_dead_station_check + 2500)
         {
             RemoveDeadRoadStations();
             Planes.RemoveUnusedAirports();
