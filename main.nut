@@ -182,15 +182,9 @@ function TeshiNet::Start()
             else
             {
                 Log.Info("Managing existing routes.", Log.LVL_INFO);
-
-                ManageBusyBusStations();
-
                 Cargo.ManageBusyTruckStations();
-
+                ManageBusyBusStations();
                 Planes.ManageBusyAirports();
-
-                Log.Info("Done managing routes.", Log.LVL_INFO);
-
                 this.last_route_manage_tick = this.GetTick();
             }
         }
