@@ -161,7 +161,7 @@ function Cargo::BuildCargoRoute(indStart, indEnd, cargoType)
     for (local y = 0; y < 3; y++)
     {
         AIVehicle.StartStopVehicle(vehs[y]);
-        TeshiNet.Sleep(150);
+        TeshiNet.Sleep(1);
     }
 
     //make sure we don't use these industries again
