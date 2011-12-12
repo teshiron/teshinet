@@ -149,7 +149,7 @@ function Cargo::BuildCargoRoute(indStart, indEnd, cargoType)
 
     //give this truck orders
     AIOrder.AppendOrder(vehs[0], startStationTile, AIOrder.AIOF_FULL_LOAD_ANY);
-    AIOrder.AppendOrder(vehs[0], endStationTile, AIOrder.AIOF_UNLOAD);
+    AIOrder.AppendOrder(vehs[0], endStationTile, (AIOrder.AIOF_UNLOAD | AIOrder.AIOF_NO_LOAD);
 
     for (local x = 1; x < 3; x++) //purchase subsequent trucks
     {
