@@ -828,13 +828,12 @@ function TeshiNet::GetPassengerTownPair()
 
         townList.RemoveList(this.towns_used); //remove the ones we already serve
 
-        townList.Valuate(AITown.GetPopulation); //let's sort by number of houses so it isn't always the biggest town by pop that we choose
-        townList.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
-        townList.KeepTop(townList.Count() / 10)
+        townList.Valuate(AITown.GetPopulation); //only towns 500 pop and above
+        townList.KeepAboveValue(499);
 
         Log.Info("There are " + townList.Count() + " towns in the list for first town.", Log.LVL_DEBUG);
 
-        townList.Valuate(AIBase.RandRangeItem, 32767); //now, let's randomize the list
+        townList.Valuate(AIBase.RandItem); //now, let's randomize the list
         townList.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
 
         first = townList.Begin();  //we'll take the first one at random.
@@ -845,6 +844,9 @@ function TeshiNet::GetPassengerTownPair()
 
         townList = AITownList(); //repopulate the list
         townList.RemoveList(this.towns_used);
+
+        townList.Valuate(AITown.GetPopulation);
+        townList.KeepAboveValue(499); //only towns 500 people and up
 
         townList.Valuate(this.TownDistance, firstloc);
         townList.KeepBetweenValue(10, maxDist);
@@ -857,7 +859,7 @@ function TeshiNet::GetPassengerTownPair()
             continue;
         }
 
-        townList.Valuate(AIBase.RandRangeItem, 32767);
+        townList.Valuate(AIBase.RandItem);
         townList.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING);
 
         second = townList.Begin();
