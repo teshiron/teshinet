@@ -89,7 +89,6 @@ class TeshiNet extends AIController
     }
 }
 
-
 function TeshiNet::Start()
 {
     Log.Info("TeshiNet v4 Loaded", Log.LVL_INFO);
@@ -267,14 +266,6 @@ function TeshiNet::Start()
             this.last_dead_station_check = this.GetTick();
         }
 
-
-        /* Every 3000 ticks, remove all unprofitable routes over 2 yrs old, regardless of whether we're at max RV count */
-        if (this.GetTick() > this.last_unprof_route_check + 3000)
-        {
-            RemoveUnprofitableRoadRoute();
-            this.last_unprof_route_check = this.GetTick();
-        }
-
         if (this.GetTick() > this.last_upgrade_search + 15000)
         {
             UpgradeRoadVehicles();
@@ -292,7 +283,7 @@ function TeshiNet::Start()
 
         this.Sleep(100);
     }
- }
+}
 
 function TeshiNet::Stop()
 {
@@ -1342,7 +1333,7 @@ function TeshiNet::SellUnusedVehicles() //find vehicles without orders, send the
     deadVehicles.Valuate(AIOrder.GetOrderCount);
     deadVehicles.KeepBelowValue(2); //keep only vehicles with 1 or 0 orders.
 
-    Log.Info("Found " + deadVehicles.Count() + " vehicles with either 1 or 0 orders.", Log.LVL_SUB_DECISIONS);
+    Log.Info("Found " + deadVehicles.Count() + " vehicles with less than two orders each.", Log.LVL_SUB_DECISIONS);
 
     longList.AddList(deadVehicles); //add the 0-order vehicles to the master list
 
@@ -1790,51 +1781,40 @@ function TeshiNet::EventHandler()
 
             Log.Info(AIVehicle.GetName(veh) + " serving " + AIStation.GetName(station) + " did not turn a profit last year.", Log.LVL_INFO);
 
-            if (IsRouteProfitable(station)) //if the route overall is profitable, just remove this vehicle
+            if (!AIVehicle.SendVehicleToDepot(veh)) //send to depot
             {
-                Log.Info("The route overall is profitable. Removing just this vehicle.", Log.LVL_SUB_DECISIONS);
-                //Log.Info("Station ID " + station + ", depot tile index " + depotLoc, Log.LVL_DEBUG);
+                AIOrder.UnshareOrders(veh); //if it didn't get the message, unshare/remove orders and add a manual depot order
 
-                if (!AIVehicle.SendVehicleToDepot(veh))
+                do //delete existing orders
                 {
-                    AIOrder.UnshareOrders(veh); //unshare orders
+                    AIOrder.RemoveOrder(veh, 0);
+                } while (AIOrder.GetOrderCount(veh) > 0)
 
-                    do //delete existing orders
-                    {
-                        AIOrder.RemoveOrder(veh, 0);
-                    } while (AIOrder.GetOrderCount(veh) > 0)
+                local order = AIOrder.AppendOrder(veh, depotLoc, AIOrder.AIOF_STOP_IN_DEPOT); //send to depot
 
-                    local order = AIOrder.AppendOrder(veh, depotLoc, AIOrder.AIOF_STOP_IN_DEPOT); //send to depot
-
-                    if (!order)
-                    {
-                        Log.Error("Unable to send vehicle to depot. It will be picked up by next no-orders check.", Log.LVL_SUB_DECISIONS);
-                        break;
-                    }
+                if (!order)
+                {
+                    Log.Error("Unable to send vehicle to depot. It will be picked up by next no-orders check.", Log.LVL_SUB_DECISIONS);
+                    break;
                 }
-
-                this.Sleep(150); //give it a little time
-
-                local timeout = 0;
-
-                do //wait for it to arrive, and sell it
-                {
-                    if (AIVehicle.IsStoppedInDepot(veh))
-                    {
-                        AIVehicle.SellVehicle(veh);
-                    }
-                    else
-                    {
-                        this.Sleep(150);
-                    }
-                    timeout++
-                } while (AIVehicle.IsValidVehicle(veh) && timeout < 50)
             }
-            else //otherwise, kill the whole route
+
+            this.Sleep(150); //give it a little time
+
+            local timeout = 0;
+
+            do //wait for it to arrive, and sell it
             {
-                Log.Info("The whole route is unprofitable as an average. Removing the route.", Log.LVL_SUB_DECISIONS);
-                RemoveRoadRoute(station, dest);
-            }
+                if (AIVehicle.IsStoppedInDepot(veh))
+                {
+                    AIVehicle.SellVehicle(veh);
+                }
+                else
+                {
+                    this.Sleep(150);
+                }
+                timeout++
+            } while (AIVehicle.IsValidVehicle(veh) && timeout < 50)
 
             break;
 
@@ -1855,7 +1835,7 @@ function TeshiNet::EventHandler()
             Log.Info("Vehicle crashed. Cloning replacement vehicle.", Log.LVL_INFO);
             CloneVehicleByStation(station);
 
-            if (reason == AIEventVehicleCrashed.CRASH_RV_LEVEL_CROSSING) //was this a truck run over by a train?
+            if (reason == AIEventVehicleCrashed.CRASH_RV_LEVEL_CROSSING) //was this a road vehicle run over by a train?
             {
                 Log.Info("Crash was due to a level crossing. Attempting to grade-separate crossing.", Log.LVL_INFO);
                 local result = GradeSeparateCrossing(location);
