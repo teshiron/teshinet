@@ -261,9 +261,9 @@ function TeshiNet::Start()
 
         if (this.GetTick() > this.last_dead_station_check + 2500)
         {
+            SellUnusedVehicles();
             RemoveDeadRoadStations();
             Planes.RemoveUnusedAirports();
-            SellUnusedVehicles();
             this.last_dead_station_check = this.GetTick();
         }
 
@@ -275,7 +275,7 @@ function TeshiNet::Start()
             this.last_unprof_route_check = this.GetTick();
         }
 
-        if (this.GetTick() > this.last_upgrade_search + 30000)
+        if (this.GetTick() > this.last_upgrade_search + 15000)
         {
             UpgradeRoadVehicles();
             //Planes.UpgradePlanes(); (not implemented yet)
@@ -1369,6 +1369,10 @@ function TeshiNet::SellUnusedVehicles() //find vehicles without orders, send the
 
     Log.Info("Found " + invalidCount + " vehicles with invalid orders.", Log.LVL_SUB_DECISIONS);
 
+    //RV only!
+    longList.Valuate(AIVehicle.GetVehicleType);
+    longList.KeepValue(AIVehicle.VT_ROAD);
+
     if (longList.Count() == 0)
     {
         return 1;
@@ -1458,6 +1462,10 @@ function TeshiNet::ForceSellUnusedVeh() //when the main function can't handle it
             }
         }
     }
+
+    //RV only!
+    longList.Valuate(AIVehicle.GetVehicleType);
+    longList.KeepValue(AIVehicle.VT_ROAD);
 
     if (longList.Count() == 0)
     {
@@ -1666,12 +1674,19 @@ function TeshiNet::UpgradeRoadVehicles()
         local cargo = AIEngine.GetCargoType(engine);
         local possReplace = AIEngineList(AIVehicle.VT_ROAD);
 
-        possReplace.Valuate(AIEngine.GetCargoType);
+        possReplace.Valuate(AIEngine.GetRoadType); //regular RV's only, no trams
+        possReplace.KeepValue(AIRoad.ROADTYPE_ROAD);
+
+        possReplace.Valuate(AIEngine.GetCargoType); //only the type of cargo we want
         possReplace.KeepValue(cargo);
 
         if (possReplace.IsEmpty()) //no vehicles for this cargo?
         {
             possReplace = AIEngineList(AIVehicle.VT_ROAD); //repopulate the list
+
+            possReplace.Valuate(AIEngine.GetRoadType); //regular RV's only, no trams
+            possReplace.KeepValue(AIRoad.ROADTYPE_ROAD);
+
             possReplace.Valuate(AIEngine.CanRefitCargo, cargo); //look for vehicles that can be refit instead
             possReplace.KeepValue(1);
         }
@@ -1756,6 +1771,13 @@ function TeshiNet::EventHandler()
         case AIEvent.AI_ET_VEHICLE_UNPROFITABLE:
             local vehicleEvent = AIEventVehicleUnprofitable.Convert(event);
             local veh = vehicleEvent.GetVehicleID();
+
+            if (AIVehicle.GetVehicleType(veh) != AIVehicle.VT_ROAD) //we already handle planes elsewhere
+            {
+                Log.Info("An unprofitable vehicle message was queued, but it is not a road vehicle.", Log.LVL_INFO);
+                break;
+            }
+
             local station = AIStation.GetStationID(AIOrder.GetOrderDestination(veh, 0));
             local dest = this.station_pairs.GetValue(station);
             local depotLoc = this.station_depot_pairs.GetValue(AIStation.GetLocation(station));
@@ -1789,7 +1811,6 @@ function TeshiNet::EventHandler()
                         Log.Error("Unable to send vehicle to depot. It will be picked up by next no-orders check.", Log.LVL_SUB_DECISIONS);
                         break;
                     }
-
                 }
 
                 this.Sleep(150); //give it a little time
