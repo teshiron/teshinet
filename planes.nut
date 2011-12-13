@@ -82,7 +82,7 @@ function Planes::ManageBusyAirports()
 
     stationList.Valuate(AIStation.GetCargoWaiting, this.passenger_cargo_id); //value them by passengers waiting
     stationList.KeepAboveValue(500); //let's increase if they're above 500
-    stationList.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING); //starting with the busiest station, since we might run out of cash
+    stationList.Sort(AIList.SORT_BY_VALUE, AIList.SORT_DESCENDING); //starting with the busiest station, since we might run out of cash
 
     if (stationList.IsEmpty()) // if the list is empty, then all stations are below 500 waiting cargo, no need to increase capacity
     {
@@ -90,12 +90,12 @@ function Planes::ManageBusyAirports()
         return -1;
     }
 
-    for (local curStation = stationList.Begin(); stationList.HasNext(); curStation = stationList.Next())
+    foreach (curStation, _ in stationList)
     {
         Log.Info("Adding an airplane to serve " + AIStation.GetName(curStation), Log.LVL_SUB_DECISIONS);
         local vehList = AIVehicleList_Station(curStation);
         vehList.Valuate(AIVehicle.GetProfitLastYear);
-        vehList.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
+        vehList.Sort(AIList.SORT_BY_VALUE, AIList.SORT_DESCENDING);
 
         local toClone = vehList.Begin();
         if (AICompany.GetBankBalance(AICompany.COMPANY_SELF) > (2 * AIEngine.GetPrice(AIVehicle.GetEngineType(toClone))))
@@ -137,7 +137,7 @@ function Planes::FindAirportPair(airport_type)
     town_list.Valuate(AIBase.RandItem);
 
     /* Now find 2 suitable towns */
-    for (local town = town_list.Begin(); town_list.HasNext(); town = town_list.Next())
+    foreach (town, _ in town_list)
     {
         /* Don't make this a CPU hog */
         Sleep(1);
@@ -165,7 +165,7 @@ function Planes::FindAirportPair(airport_type)
             local test = AITestMode();
             local good_tile = 0;
 
-            for (tile = list.Begin(); list.HasNext(); tile = list.Next())
+            foreach (tile, _ in list)
             {
                 Sleep(1);
                 if (!AIAirport.BuildAirport(tile, airport_type, AIStation.STATION_NEW)) continue;
@@ -208,7 +208,7 @@ function Planes::FindAirportPair(airport_type)
     town_list.Valuate(AIBase.RandItem);
 
     /* Now find 2 suitable towns */
-    for (local town = town_list.Begin(); town_list.HasNext(); town = town_list.Next())
+    foreach (town in town_list)
     {
         /* Don't make this a CPU hog */
         Sleep(1);
@@ -236,7 +236,7 @@ function Planes::FindAirportPair(airport_type)
             local test = AITestMode();
             local good_tile = 0;
 
-            for (tile = list.Begin(); list.HasNext(); tile = list.Next())
+            foreach (tile in list)
             {
                 Sleep(1);
                 if (!AIAirport.BuildAirport(tile, airport_type, AIStation.STATION_NEW)) continue;
@@ -367,7 +367,7 @@ function Planes::RemoveUnprofPlanes()
     local success = false;
     local count = 0;
 
-    for (local plane = planeList.Begin(); planeList.HasNext(); plane = planeList.Next())
+    foreach (plane, _ in planeList)
     {
         if (AIVehicle.GetProfitLastYear(plane) < 10000)
         {
@@ -396,7 +396,7 @@ function Planes::SellStoppedPlanes()
 
     local count = 0;
 
-    for (local plane = planeList.Begin(); planeList.HasNext(); plane = planeList.Next())
+    foreach (plane, _ in planeList)
     {
         if (AIVehicle.SellVehicle(plane))
         {
@@ -413,7 +413,7 @@ function Planes::RemoveUnusedAirports()
     Log.Info("Removing unused airports.", Log.LVL_SUB_DECISIONS);
     local stationList = AIStationList(AIStation.STATION_AIRPORT);
 
-    for (local curSta = stationList.Begin(); stationList.HasNext(); curSta = stationList.Next())
+    foreach (curSta in stationList)
     {
         local stationVehs = AIVehicleList_Station(curSta);
 
@@ -424,161 +424,4 @@ function Planes::RemoveUnusedAirports()
         }
         this.Sleep(1);
     }
-}
-
-function Planes::RemoveUnprofRoute() //do we actually use this function anywhere?
-{
-    Log.Info("Searching for least profitable air route for removal.", Log.LVL_INFO);
-
-    local routeProfits = AIList(); //create a list to store the average profit of each route
-
-    local staList = AIStationList(AIStation.STATION_AIRPORT);
-
-    for (local route = staList.Begin(); staList.HasNext(); route = staList.Next()) //iterate through our bus stations
-    {
-        local vehicles = AIVehicleList_Station(route);
-
-        if (vehicles.IsEmpty()) continue;
-
-        vehicles.Valuate(AIVehicle.GetAge); //how old are they?
-        vehicles.KeepAboveValue(365 * 2); //we only want to calculate on vehicles that have had two full years to run. this ensures last year's profit is a full year.
-
-        if (vehicles.IsEmpty()) continue; //young route? give it a chance.
-
-        vehicles.Valuate(AIVehicle.GetProfitLastYear);
-
-        local revenuetotal = 0;
-        local meanprofit = 0;
-
-        for (local veh = vehicles.Begin(); vehicles.HasNext(); veh = vehicles.Next())
-        {
-            revenuetotal += vehicles.GetValue(veh);
-        }
-
-        local meanprofit = revenuetotal / vehicles.Count(); //calculate the mean profit (total revenue divided by total vehicle count)
-
-        routeProfits.AddItem(route, meanprofit); //add this route with profit total to the list.
-
-    }
-    routeProfits.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_ASCENDING); //the route at the top is our least profitable by vehicle
-
-    local deadRoute = routeProfits.Begin(); //this is the station index of the first station on the least profitable route.
-
-    /* if (routeProfits.GetValue(deadRoute) >= 10000) //min profit to score, $20,000 or 10,000 pounds
-    {
-        Log.Info("Our least profitable road route is earning over 10,000 pounds per vehicle. Aborting removal.");
-        return -1;
-    }  almost all air routes will be over 10K pounds, this is meaningless */
-
-    local deadRouteStart = deadRoute;
-    local deadVehicles = AIVehicleList_Station(deadRoute);
-
-    local tempveh = deadVehicles.Begin();
-
-    local otherEnd = AIStationList_Vehicle(tempveh);
-    local tempEnd = AIList();
-
-    tempEnd.AddItem(deadRouteStart, 1);
-    otherEnd.RemoveList(tempEnd);
-    local deadRouteEnd = otherEnd.Begin();
-
-    Log.Info("The route from " + AIStation.GetName(deadRouteStart) + " to " + AIStation.GetName(deadRouteEnd) + " is our least profitable route per vehicle. Killing this route.");
-    Log.Info("The average profit per vehicle last year was " + routeProfits.GetValue(deadRoute) + " (pounds) on this route.");
-
-
-
-    Log.Info("Sending vehicles to depot and selling them.");
-
-    local tempList = AIList(); //a list for vehicles which fail to get sent
-
-    for (local curVeh = deadVehicles.Begin(); deadVehicles.HasNext(); curVeh = deadVehicles.Next())
-    {
-        local success = AIVehicle.SendVehicleToDepot(curVeh);
-
-        if (!success)
-        {
-            tempList.AddItem(curVeh, 1)
-        }
-    }
-
-    this.Sleep(100); //give them some time to get there
-    local timeout = 0;
-
-    if (!tempList.IsEmpty())
-    {
-        Log.Info(tempList.Count() + " vehicles didn't get the depot order.  Trying again.");
-
-        for (local curtVeh = tempList.Begin(); tempList.HasNext(); curtVeh = tempList.Next())
-        {
-            local succeed = false;
-
-
-            if (!AIVehicle.IsStoppedInDepot(curtVeh))
-            {
-                while (!succeed)
-                {
-                    succeed = AIVehicle.SendVehicleToDepot(curtVeh);
-                    this.Sleep(2);
-
-                }
-            }
-            else
-            {
-                continue;
-            }
-        }
-    }
-
-    do
-    {
-        deadVehicles.Valuate(AIVehicle.IsStoppedInDepot);
-        deadVehicles.KeepValue(1);
-
-        for (local curVeh = deadVehicles.Begin(); deadVehicles.HasNext(); curVeh = deadVehicles.Next())
-        {
-            AIVehicle.SellVehicle(curVeh);
-        }
-
-        deadVehicles = AIVehicleList_Station(deadRoute);
-
-        this.Sleep(25); //give the rest some more time
-        timeout++;
-
-    } while (!deadVehicles.IsEmpty() && timeout < 45)
-
-    if (!deadVehicles.IsEmpty())
-    { //once more, with feeling!
-        Log.Info("Seems that not all of the vehicles made it to the depot. We'll try one more time.");
-
-        this.Sleep(25); //give them some time to get there
-        local timeout = 0;
-
-        do
-        {
-            deadVehicles.Valuate(AIVehicle.IsStoppedInDepot);
-            deadVehicles.KeepValue(1);
-
-            for (local curVeh = deadVehicles.Begin(); deadVehicles.HasNext(); curVeh = deadVehicles.Next())
-            {
-                AIVehicle.SellVehicle(curVeh);
-            }
-
-            deadVehicles = AIVehicleList_Station(deadRoute);
-
-            this.Sleep(25); //give the rest some more time
-            timeout++;
-
-        } while (!deadVehicles.IsEmpty() && timeout < 45)
-    }
-
-
-    Log.Info("Vehicles sold; removing stations.");
-
-    this.towns_used.RemoveItem(AITile.GetClosestTown(AIStation.GetLocation(deadRouteStart)));
-    this.towns_used.RemoveItem(AITile.GetClosestTown(AIStation.GetLocation(deadRouteEnd)));
-
-    AIAirport.RemoveAirport(AIStation.GetLocation(deadRouteStart));
-    AIAirport.RemoveAirport(AIStation.GetLocation(deadRouteEnd));
-
-    return 1;
 }

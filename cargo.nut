@@ -86,37 +86,36 @@ function Cargo::BuildCargoRoute(indStart, indEnd, cargoType)
         vehList = AIEngineList(AIVehicle.VT_ROAD); //repopulate
 
         //only the buildable engines
-    vehList.Valuate(AIEngine.IsBuildable);
-    vehList.KeepValue(1);
+        vehList.Valuate(AIEngine.IsBuildable);
+        vehList.KeepValue(1);
 
         //and only road buses, not trams
         vehList.Valuate(AIEngine.GetRoadType);
         vehList.KeepValue(AIRoad.ROADTYPE_ROAD);
 
-    //See if we can refit one of the truck types
-    vehList.Valuate(AIEngine.CanRefitCargo, cargoType);
-    vehList.KeepValue(1);
+        //See if we can refit one of the truck types
+        vehList.Valuate(AIEngine.CanRefitCargo, cargoType);
+        vehList.KeepValue(1);
 
-    //but not articulated -- we're using pull in stations
-    vehList.Valuate(AIEngine.IsArticulated);
-    vehList.KeepValue(0);
+        //but not articulated -- we're using pull in stations
+        vehList.Valuate(AIEngine.IsArticulated);
+        vehList.KeepValue(0);
 
-    //Do we have a winner?
-    if (!vehList.IsEmpty())
-    {
-       mustRefit = true;
-    }
-    else
-    {
-       Log.Warning("No vehicles available for this type of route. Aborting.", Log.LVL_INFO);
-       return -1;
-    }
-
+        //Do we have a winner?
+        if (!vehList.IsEmpty())
+        {
+           mustRefit = true;
+        }
+        else
+        {
+           Log.Warning("No vehicles available for this type of route. Aborting.", Log.LVL_INFO);
+           return -1;
+        }
     }
 
     //we want the fastest type of vehicle.
     vehList.Valuate(AIEngine.GetMaxSpeed);
-    vehList.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING);
+    vehList.Sort(AIList.SORT_BY_VALUE, AIList.SORT_DESCENDING);
 
     local vehType = vehList.Begin(); //we'll build the one at the top of the list.
     local vehs = [];
@@ -195,7 +194,7 @@ function Cargo::ManageBusyTruckStations()
     local masterList = AIList();
     local cargList = AICargoList();
 
-    for (local cargo = cargList.Begin(); cargList.HasNext(); cargo = cargList.Next())
+    foreach (cargo, _ in cargList)
     {
         local stationList = AIStationList(AIStation.STATION_TRUCK_STOP); //make a list of stations
 
@@ -210,9 +209,9 @@ function Cargo::ManageBusyTruckStations()
         Log.Info("No truck stations with excessive waiting cargo.", Log.LVL_SUB_DECISIONS);
         return -1;
     }
-    masterList.Sort(AIAbstractList.SORT_BY_VALUE, AIAbstractList.SORT_DESCENDING); //starting with the busiest station, since we might run out of cash
+    masterList.Sort(AIList.SORT_BY_VALUE, AIList.SORT_DESCENDING); //starting with the busiest station, since we might run out of cash
 
-    for (local curStation = masterList.Begin(); masterList.HasNext(); curStation = masterList.Next())
+    foreach (curStation, _ in masterList)
     {
         local vehList = AIVehicleList_Station(curStation); //make a list of vehicles at this station, so we can count them
 

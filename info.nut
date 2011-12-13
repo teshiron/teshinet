@@ -8,7 +8,7 @@ class TeshiNet extends AIInfo
     function GetDate()        { return "2011-12-12"; }
     function CreateInstance() { return "TeshiNet"; }
     function GetShortName()   { return "TESH"; }
-    function GetAPIVersion()  { return "1.0"; }
+    function GetAPIVersion()  { return "1.1"; }
 
     function GetSettings()
     {
