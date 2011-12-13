@@ -201,6 +201,11 @@ function TeshiNet::Start()
             }
         }
 
+        if (this.at_max_RV_count)
+        {
+            skipNewRoute = true;
+        }
+
         //Build a new road route if there's enough cash.
         if (AICompany.GetBankBalance(AICompany.COMPANY_SELF) > 50000 && this.GetTick() > (this.last_route_tick + 1000))
         {
