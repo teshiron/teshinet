@@ -55,8 +55,6 @@ class TeshiNet extends AIController
         this.stations_by_industry = AIList();
         this.industries_by_station = AIList();
 
-        if (AIController.GetSetting("enable_buses") == 0) disable_buses = true;
-
         local list = AICargoList();
 
         this.passenger_cargo_id = Helper.GetPAXCargo();
@@ -109,6 +107,15 @@ function TeshiNet::Start()
         if (AIController.GetSetting("use_planes") == 0)
         {
             skipPlaneRoute = true;
+        }
+
+        if (AIController.GetSetting("enable_buses") == 0)
+        {
+            this.disable_buses = true;
+        }
+        else
+        {
+            this.disable_buses = false;
         }
 
         while (AIEventController.IsEventWaiting()) //Event handler: get relevant events and queue them up for handling, by priority
@@ -1171,7 +1178,6 @@ function TeshiNet::RemoveRoadRoute(start_station, end_station)
 
         } while (!deadVehicles.IsEmpty() && timeout < 45)
     }
-
 
     Log.Info("Vehicles sold; removing stations.", Log.LVL_SUB_DECISIONS);
 
