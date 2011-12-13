@@ -1122,105 +1122,25 @@ function TeshiNet::RemoveRoadRoute(start_station, end_station)
 
     Log.Info("Sending vehicles to depot and selling them.", Log.LVL_SUB_DECISIONS);
 
-    local money = AIAccounting();
-
     local depotLoc = this.station_depot_pairs.GetValue(AIStation.GetLocation(deadRoute));
 
     for (local curVeh = deadVehicles.Begin(); deadVehicles.HasNext(); curVeh = deadVehicles.Next())
     {
-        AIOrder.UnshareOrders(curVeh); //unshare orders
-
-        do //delete existing orders
+        if (!AIVehicle.SendVehicleToDepot(curVeh))
         {
-            AIOrder.RemoveOrder(curVeh, 0);
-        } while (AIOrder.GetOrderCount(curVeh) > 0)
+            AIOrder.UnshareOrders(curVeh); //unshare orders
 
-        AIOrder.AppendOrder(curVeh, depotLoc, AIOrder.AIOF_STOP_IN_DEPOT); //send to depot
-    }
-
-    this.Sleep(100); //give them time to arrive
-    local timeout = 0;
-
-    do
-    {
-        local sold = 0;
-
-        for (local curVeh = deadVehicles.Begin(); deadVehicles.HasNext(); curVeh = deadVehicles.Next())
-        {
-            if (AIVehicle.IsStoppedInDepot(curVeh))
+            do //delete existing orders
             {
-                sold = AIVehicle.SellVehicle(curVeh);
-                if (sold)
-                {
-                    deadVehicles.RemoveItem(curVeh);
-                }
-            }
+                AIOrder.RemoveOrder(curVeh, 0);
+            } while (AIOrder.GetOrderCount(curVeh) > 0)
 
+            AIOrder.AppendOrder(curVeh, depotLoc, AIOrder.AIOF_STOP_IN_DEPOT); //send to depot
         }
-
-        this.Sleep(100); //give the rest some more time
-        timeout++;
-
-    } while (!deadVehicles.IsEmpty() && timeout < 45)
-
-    if (!deadVehicles.IsEmpty())
-    { //once more, with feeling!
-        Log.Info("Seems that not all of the vehicles made it to the depot. We'll try one more time.", Log.LVL_SUB_DECISIONS);
-
-        this.Sleep(25); //give them some time to get there
-        local timeout = 0;
-
-        do
-        {
-            deadVehicles.Valuate(AIVehicle.IsStoppedInDepot);
-            deadVehicles.KeepValue(1);
-
-            for (local curVeh = deadVehicles.Begin(); deadVehicles.HasNext(); curVeh = deadVehicles.Next())
-            {
-                AIVehicle.SellVehicle(curVeh);
-            }
-
-            deadVehicles = AIVehicleList_Station(deadRoute);
-
-            this.Sleep(100); //give the rest some more time
-            timeout++;
-
-        } while (!deadVehicles.IsEmpty() && timeout < 45)
     }
 
-    Log.Info("Vehicles sold; removing stations.", Log.LVL_SUB_DECISIONS);
+    Log.Info("Vehicles sent to depot.  Station removal routines will clean up the rest.", Log.LVL_SUB_DECISIONS);
 
-    if (passRoute) //clean up our indexes
-    {
-        this.towns_used.RemoveItem(AITile.GetClosestTown(AIStation.GetLocation(deadRouteStart)));
-        this.towns_used.RemoveItem(AITile.GetClosestTown(AIStation.GetLocation(deadRouteEnd)));
-    }
-    else
-    {
-        local indStart = this.industries_by_station.GetValue(deadRouteStart);
-        local indEnd = this.industries_by_station.GetValue(deadRouteEnd);
-        this.industries_by_station.RemoveItem(deadRouteStart);
-        this.industries_by_station.RemoveItem(deadRouteEnd);
-        this.stations_by_industry.RemoveItem(indStart);
-        this.stations_by_industry.RemoveItem(indEnd);
-    }
-
-    //Use SuperLib station removal routines
-    Station.DemolishStation(deadRouteStart);
-    Station.DemolishStation(deadRouteEnd);
-
-    AIRoad.RemoveRoadDepot(depotLoc); //remove the start depot, we already know its location
-
-    depotLoc = this.station_depot_pairs.GetValue(AIStation.GetLocation(deadRouteEnd)); //find the location of the end depot
-
-    AIRoad.RemoveRoadDepot(depotLoc); //remove it
-
-    this.station_pairs.RemoveItem(deadRouteStart); //clean up our indexes
-    this.station_depot_pairs.RemoveItem(deadRouteStart);
-    this.station_pairs.RemoveItem(deadRouteEnd);
-    this.station_depot_pairs.RemoveItem(deadRouteEnd);
-
-    Log.Info("Cost of route removal was " + money.GetCosts() + " pounds.", Log.LVL_SUB_DECISIONS);
     return 1;
 }
 
