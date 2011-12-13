@@ -89,7 +89,7 @@ class TeshiNet extends AIController
 
 function TeshiNet::Start()
 {
-    Log.Info("TeshiNet v4 Loaded", Log.LVL_INFO);
+    Log.Info("TeshiNet v5 Loaded", Log.LVL_INFO);
 
     if (this.towns_used.IsEmpty()) SetCompanyName();
 
