@@ -226,13 +226,13 @@ function TeshiNet::Start()
             }
         }
 
-        if (this.GetTick() > (this.last_plane_check + 1250))
+        /* if (this.GetTick() > (this.last_plane_check + 1250))
         {
             //TODO: find planes with only one order and remove the airport -- the route was not built right.
             Planes.RemoveUnprofPlanes();
             Planes.SellStoppedPlanes();
             this.last_plane_check = this.GetTick();
-        }
+        } */
 
         if (this.GetTick() > (this.last_loan_pmt_tick + 1850)) //pay off loan .
         {
@@ -1670,12 +1670,6 @@ function TeshiNet::EventHandler()
             local vehicleEvent = AIEventVehicleUnprofitable.Convert(event);
             local veh = vehicleEvent.GetVehicleID();
 
-            if (AIVehicle.GetVehicleType(veh) != AIVehicle.VT_ROAD) //we already handle planes elsewhere
-            {
-                Log.Info("An unprofitable vehicle message was queued, but it is not a road vehicle.", Log.LVL_INFO);
-                break;
-            }
-
             local station = AIStation.GetStationID(AIOrder.GetOrderDestination(veh, 0));
             local dest = this.station_pairs.GetValue(station);
             local depotLoc = this.station_depot_pairs.GetValue(AIStation.GetLocation(station));
@@ -1740,9 +1734,18 @@ function TeshiNet::EventHandler()
             local location = crashEvent.GetCrashSite();
             local reason = crashEvent.GetCrashReason();
             local station = AIStation.GetStationID(AIOrder.GetOrderDestination(vehicle, 0));
+            local type = AIVehicle.GetVehicleType(vehicle);
 
             Log.Info("Vehicle crashed. Cloning replacement vehicle.", Log.LVL_INFO);
-            CloneVehicleByStation(station);
+
+            if (type != AIVehicle.VT_AIR)
+            {
+                CloneVehicleByStation(station);
+            }
+            else
+            {
+                AIVehicle.CloneVehicle(AIAirport.GetHangarOfAirport(AIStation.GetLocation(station)), vehicle, true);
+            }
 
             if (reason == AIEventVehicleCrashed.CRASH_RV_LEVEL_CROSSING) //was this a road vehicle run over by a train?
             {

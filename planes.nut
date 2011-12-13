@@ -116,7 +116,11 @@ function Planes::ManageBusyAirports()
 function Planes::FindAirportPair(airport_type)
 {
     local airport_x, airport_y, airport_rad;
-    local first, firstTown, second, secondTown, pair;
+    local first = -1;
+    local firstTown = -1;
+    local second = -1;
+    local secondTown = -1;
+    local pair = [-1, -1];
 
     airport_x = AIAirport.GetAirportWidth(airport_type);
     airport_y = AIAirport.GetAirportHeight(airport_type);
@@ -253,7 +257,15 @@ function Planes::FindAirportPair(airport_type)
         break;
     }
 
-    if (!AIMap.IsValidTile(second))
+    if (second != null)
+    {
+        if (!AIMap.IsValidTile(second))
+        {
+            Log.Warning("Couldn't find a suitable second town to build an airport in", Log.LVL_INFO);
+            return -1;
+        }
+    }
+    else
     {
         Log.Warning("Couldn't find a suitable second town to build an airport in", Log.LVL_INFO);
         return -1;
