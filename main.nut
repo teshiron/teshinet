@@ -277,7 +277,6 @@ function TeshiNet::Start()
 
         if (this.GetTick() > this.last_dead_station_check + 2500)
         {
-            SellUnusedVehicles();
             RemoveDeadRoadStations();
             Planes.RemoveUnusedAirports();
             this.last_dead_station_check = this.GetTick();
@@ -285,6 +284,7 @@ function TeshiNet::Start()
 
         if (this.GetTick() > this.last_upgrade_search + 15000)
         {
+            SellUnusedVehicles();
             UpgradeRoadVehicles();
             //Planes.UpgradePlanes(); (not implemented yet)
             this.last_upgrade_search = this.GetTick();
@@ -1330,33 +1330,6 @@ function TeshiNet::SellUnusedVehicles() //find vehicles without orders, send the
         return;
     }
 
-    this.Sleep(100); //give them time to arrive
-    local timeout = 0;
-
-    local money = AIAccounting();
-
-    do
-    {
-        local sold = 0;
-
-        for (local curVeh = longList.Begin(); longList.HasNext(); curVeh = longList.Next())
-        {
-            if (AIVehicle.IsStoppedInDepot(curVeh))
-            {
-                sold = AIVehicle.SellVehicle(curVeh);
-                if (sold)
-                {
-                    longList.RemoveItem(curVeh);
-                }
-            }
-        }
-
-        this.Sleep(100); //give the rest some more time
-        timeout++;
-
-    } while (!longList.IsEmpty() && timeout < 45)
-
-    Log.Info("Recovered " + money.GetCosts() + " pounds by selling them.", Log.LVL_SUB_DECISIONS);
 }
 
 function TeshiNet::ForceSellUnusedVeh() //when the main function can't handle it, build a depot and try again
@@ -1430,8 +1403,6 @@ function TeshiNet::ForceSellUnusedVeh() //when the main function can't handle it
     this.Sleep(100); //give them time to arrive
     local timeout = 0;
 
-    local money = AIAccounting();
-
     do
     {
         local sold = 0;
@@ -1455,7 +1426,6 @@ function TeshiNet::ForceSellUnusedVeh() //when the main function can't handle it
 
     AIRoad.RemoveRoadDepot(depotLoc);
 
-    Log.Info("Recovered " + money.GetCosts() + " pounds by selling them.", Log.LVL_SUB_DECISIONS);
 }
 
 function TeshiNet::RemoveUnprofitableRoadRoute()
