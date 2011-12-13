@@ -128,19 +128,24 @@ function TeshiNet::Start()
                     local closedInd = closeEvent.GetIndustryID();
                     if (this.stations_by_industry.HasItem(closedInd))
                     {
-                        this.event_queue.Insert(event, 5);
+                        this.event_queue.Insert(event, 3);
                         Log.Info("Queued an industry closure.", Log.LVL_DEBUG);
                     }
                     break;
 
                 case AIEvent.AI_ET_VEHICLE_UNPROFITABLE:
-                    this.event_queue.Insert(event, 3);
+                    this.event_queue.Insert(event, 5);
                     Log.Info("Queued an unprofitable vehicle notification.", Log.LVL_DEBUG);
                     break;
 
                 case AIEvent.AI_ET_VEHICLE_CRASHED:
                     this.event_queue.Insert(event, 1);
                     Log.Info("Queued a vehicle crash.", Log.LVL_DEBUG);
+                    break;
+
+                case AIEvent.AI_ET_VEHICLE_WAITING_IN_DEPOT:
+                    this.event_queue.Insert(event, 7);
+                    Log.Info("Queued a vehicle waiting in depot.", Log.LVL_DEBUG);
                     break;
 
                 default:
@@ -288,7 +293,7 @@ function TeshiNet::Start()
 
         Log.Info("End of main loop: tick " + this.GetTick(), Log.LVL_DEBUG);
 
-        this.Sleep(100);
+        this.Sleep(50);
     }
 }
 
@@ -990,7 +995,11 @@ function TeshiNet::RemoveDeadRoadStations()
         if (stationVehs.IsEmpty())
         {
             Log.Info("Station " + AIStation.GetName(curSta) + " is not in use. Removing.", Log.LVL_SUB_DECISIONS);
-            RemoveRoadStation(curSta);
+            Station.DemolishStation(curSta);
+            AIRoad.RemoveRoadDepot(this.station_depot_pairs.GetValue(curSta));
+            this.station_depot_pairs.RemoveItem(curSta);
+            this.towns_used.RemoveItem(AIStation.GetNearestTown(curSta));
+            this.station_pairs.RemoveItem(curSta);
         }
         this.Sleep(1);
     }
@@ -1005,7 +1014,11 @@ function TeshiNet::RemoveDeadRoadStations()
         if (stationVehs.IsEmpty())
         {
             Log.Info("Station " + AIStation.GetName(curSta) + " is not in use. Removing.", Log.LVL_SUB_DECISIONS);
-            RemoveRoadStation(curSta);
+            Station.DemolishStation(curSta);
+            AIRoad.RemoveRoadDepot(this.station_depot_pairs.GetValue(curSta));
+            this.station_depot_pairs.RemoveItem(curSta);
+            this.industries_by_station.RemoveItem(curSta);
+            this.stations_by_industry.RemoveValue(curSta);
         }
         this.Sleep(1);
     }
@@ -1807,7 +1820,9 @@ function TeshiNet::EventHandler()
                 }
             }
 
-            this.Sleep(150); //give it a little time
+            Log.Info("Sent " + AIVehicle.GetName(veh) + " to depot.", Log.LVL_SUB_DECISIONS);
+
+           /* this.Sleep(150); //give it a little time
 
             local timeout = 0;
 
@@ -1822,7 +1837,7 @@ function TeshiNet::EventHandler()
                     this.Sleep(150);
                 }
                 timeout++
-            } while (AIVehicle.IsValidVehicle(veh) && timeout < 50)
+            } while (AIVehicle.IsValidVehicle(veh) && timeout < 50) */
 
             break;
 
@@ -1858,6 +1873,20 @@ function TeshiNet::EventHandler()
                 }
             }
 
+            break;
+
+        case AIEvent.AI_ET_VEHICLE_WAITING_IN_DEPOT:
+            local waitingEvent = AIEventVehicleWaitingInDepot.Convert(event);
+            local vehicle = waitingEvent.GetVehicleID();
+
+            if (!AIVehicle.IsValidVehicle(vehicle))
+            {
+                Log.Info("We queued a vehicle-in-depot notification, but the vehicle is no longer valid.", Log.LVL_DEBUG);
+                break;
+            }
+
+            Log.Info("Selling " + AIVehicle.GetName(vehicle), Log.LVL_INFO);
+            AIVehicle.SellVehicle(vehicle);
             break;
 
         default:
