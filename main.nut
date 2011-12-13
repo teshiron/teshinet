@@ -548,7 +548,7 @@ function TeshiNet::SelectSubsidy()
         return -1;
     }
 
-    //Let's check the awarded passenger subsidies, if any belong to us, we abort. (don't care about multiple industry subs right now)
+    //Let's check the awarded passenger subsidies, if any belong to us, we go cargo only.
     subsList.Valuate(AISubsidy.IsAwarded);
     subsList.KeepValue(1);
     subsList.Valuate(AISubsidy.GetCargoType);
@@ -571,6 +571,12 @@ function TeshiNet::SelectSubsidy()
     subsList.Valuate(AISubsidy.IsAwarded);
     subsList.KeepValue(0);
 
+    if (cargoOnly)
+    {
+        subsList.Valuate(AISubsidy.GetCargoType);
+        subsList.RemoveValue(this.passenger_cargo_id);
+    }
+
     //randomize the subsidy list so we're not always competing against other TeshiNet instances
     //if we do not randomize the list, we will always try the subs in order from bottom to top (as listed in the GUI subs window)
     subsList.Valuate(AIBase.RandItem);
@@ -580,28 +586,14 @@ function TeshiNet::SelectSubsidy()
     {
         local source = AISubsidy.GetSourceIndex(currentSub);
         local dest = AISubsidy.GetDestinationIndex(currentSub);
-        local sourceTile = null;
-        local destTile = null;
         local cargo = AISubsidy.GetCargoType(currentSub);
-        local distance = null;
 
         //check to see if we already serve both source and destination. if so, do not use this one.
         //this avoids building duplicate service to try to get a subsidy if our vehicles are very slow
 
-        Log.Info("Source is " + source + " and destination is " + dest, Log.LVL_DEBUG);
-
-        local maxDist = null;
-    local curYear = AIDate.GetYear(AIDate.GetCurrentDate());
-
         if (cargo == this.passenger_cargo_id)
         {
             Log.Info("Evaluating a passenger subsidy: " + currentSub, Log.LVL_DEBUG);
-
-            if (cargoOnly)
-            {
-                Log.Info("We already have a passenger sub. Skipping.", Log.LVL_DEBUG);
-                continue;
-            }
 
             //TODO: make this check if this pairing is actually a route; if it is not, we should build this subsidy anyway
             if (this.towns_used.HasItem(source) && this.towns_used.HasItem(dest)) //check if we serve both towns
@@ -623,7 +615,7 @@ function TeshiNet::SelectSubsidy()
                 continue; //we're doing road vehicles; this should be obvious.
             }
 
-            if (this.industries_used.HasItem(source) && this.industries_used.HasItem(dest)) //check if we serve both industries
+            if (this.stations_by_industry.HasItem(source) && this.stations_by_industry.HasItem(dest)) //check if we serve both industries
             {
                 continue;
             }
@@ -644,7 +636,6 @@ function TeshiNet::SelectSubsidy()
 
 function TeshiNet::BuildPassengerRoute(townStart, townEnd)
 {
-
     //Find a place for the source station
     AIRoad.SetCurrentRoadType(AIRoad.ROADTYPE_ROAD);
 
