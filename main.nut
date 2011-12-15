@@ -660,8 +660,8 @@ function TeshiNet::BuildPassengerRoute(townStart, townEnd)
     local startReturn = Road.BuildMagicDTRSInTown(townStart, AIRoad.ROADVEHTYPE_BUS, 1);
     local endReturn = Road.BuildMagicDTRSInTown(townEnd, AIRoad.ROADVEHTYPE_BUS, 1);
 
-    local startStationID = startReturn.station_id;
-    local endStationID = endReturn.station_id;
+    local startStationID = startReturn.station_id ? startReturn.station_id : -1;
+    local endStationID = endReturn.station_id ? endReturn.station_id : -1;
     startDepotTile = startReturn.depot_tile;
     endDepotTile = endReturn.depot_tile;
 
@@ -674,19 +674,13 @@ function TeshiNet::BuildPassengerRoute(townStart, townEnd)
     else
     {
         Log.Error("One or more stations or depots were not built. Aborting.", Log.LVL_INFO); //if not, remove what did get built
-        if (startStationID)
+        if (AIStation.IsValidStation(startStationID))
         {
-            if (AIStation.IsValidStation(startStationID))
-            {
-                Station.DemolishStation(startStationID);
-            }
+            Station.DemolishStation(startStationID);
         }
-        if (endStationID)
+        if (AIStation.IsValidStation(endStationID))
         {
-            if (AIStation.IsValidStation(endStationID))
-            {
             Station.DemolishStation(endStationID);
-            }
         }
         if (startDepotTile) AIRoad.RemoveRoadDepot(startDepotTile);
         if (endDepotTile) AIRoad.RemoveRoadDepot(endDepotTile);
