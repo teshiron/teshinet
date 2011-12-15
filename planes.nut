@@ -38,42 +38,63 @@ function Planes::BuildAirRoute()
         }
     }
 
+    Log.Info("Trying to build an air route", Log.LVL_INFO);
 
-    Log.Info("Trying to build an airport route", Log.LVL_INFO);
+    local air_pair = Planes.FindAirPair();
 
-    local airports = Planes.FindAirportPair(airport_type);
-
-    if (airports == -1)
+    switch (air_pair)
     {
+        case -1:
+            Log.Error("Unable to find a first town for route.");
+            return -1;
+            break;
+        case -2:
+            Log.Error("Unable to find a second town for route.");
+            return -1;
+            break;
+        default:
+            break;
+    }
+
+    local airportLoc1 = Airport.BuildAirportInTown(air_pair[0], airport_type, this.passenger_cargo_id);
+    local airportLoc2 = null;
+
+    if (airportLoc1)
+    {
+        airportLoc2 = Airport.BuildAirportInTown(air_pair[1], airport_type, this.passenger_cargo_id);
+    }
+    else
+    {
+        Log.Info("Failed to build first airport. Will try again later with a different town pair.", Log.LVL_INFO);
         return -1;
     }
 
-    /* Build the airports for real */
-    if (!AIAirport.BuildAirport(airports[0], airport_type, AIStation.STATION_NEW)) {
-        AILog.Error("Although the testing told us we could build 2 airports, it still failed on the first airport at tile " + airports[0] + ".");
-        this.towns_used.RemoveItem(airports[2]);
-        this.towns_used.RemoveItem(airports[3]);
-        return -3;
+    if (airportLoc2)
+    {
+        local built = Planes.BuildAircraft(airportLoc1, airportLoc2);
+        if (built == 0)
+        {
+            this.station_pairs.AddItem(AIStation.GetStationID(airportLoc1), AIStation.GetStationID(airportLoc2));
+            this.station_pairs.AddItem(AIStation.GetStationID(airportLoc2), AIStation.GetStationID(airportLoc1));
+            this.towns_used.AddItem(air_pair[0], 1);
+            this.towns_used.AddItem(air_pair[1], 1);
+        }
+        else
+        {
+            Log.Error("Failed to build aircraft.");
+            AIAirport.RemoveAirport(airportLoc1);
+            AIAirport.RemoveAirport(airportLoc2);
+            return -1;
+        }
     }
-    if (!AIAirport.BuildAirport(airports[1], airport_type, AIStation.STATION_NEW)) {
-        AILog.Error("Although the testing told us we could build 2 airports, it still failed on the second airport at tile " + airports[1] + ".");
-        AIAirport.RemoveAirport(airports[0]);
-        this.towns_used.RemoveItem(airports[2]);
-        this.towns_used.RemoveItem(airports[3]);
-        return -4;
+    else
+    {
+        Log.Error("Failed to build second airport. Will try again later with a different town pair.", Log.LVL_INFO);
+        AIAirport.RemoveAirport(airportLoc1);
     }
 
-    local ret = Planes.BuildAircraft(airports[0], airports[1]);
-    if (ret < 0) {
-        AIAirport.RemoveAirport(airports[0]);
-        AIAirport.RemoveAirport(airports[1]);
-        this.towns_used.RemoveItem(airports[2]);
-        this.towns_used.RemoveItem(airports[3]);
-        return ret;
-    }
-
-    Log.Info("Done building a route", Log.LVL_INFO);
-    return ret;
+    Log.Info("Done building an air route", Log.LVL_INFO);
+    return 1;
 }
 
 function Planes::ManageBusyAirports()
@@ -413,7 +434,7 @@ function Planes::RemoveUnusedAirports()
     Log.Info("Removing unused airports.", Log.LVL_SUB_DECISIONS);
     local stationList = AIStationList(AIStation.STATION_AIRPORT);
 
-    foreach (curSta in stationList)
+    foreach (curSta, _ in stationList)
     {
         local stationVehs = AIVehicleList_Station(curSta);
 
@@ -424,4 +445,39 @@ function Planes::RemoveUnusedAirports()
         }
         this.Sleep(1);
     }
+}
+
+function Planes::FindAirPair()
+{
+    local townList = AITownList();
+    local first = null;
+    local second = null;
+
+    townList.Valuate(AITown.GetPopulation);
+    townList.KeepAboveValue(999); //only build airports in towns over 1K population
+
+    townList.Valuate(AITown.GetAllowedNoise);
+    townList.KeepAboveValue(0); //eliminate any towns which will not allow more airports
+
+    townList.RemoveList(this.towns_used); //remove any towns we already service
+
+    if (townList.IsEmpty()) return -1;
+
+    townList.Valuate(AIBase.RandItem);
+    townList.Sort(AIList.SORT_BY_VALUE, AIList.SORT_ASCENDING); //randomize the list
+
+    first = townList.Begin(); //get the top one, that is our first town
+    townList.RemoveItem(first); //take it off the list
+
+    townList.Valuate(TownDistance, AITown.GetLocation(first)); //valuate by distance from the first town
+    townList.KeepBetweenValue(100, 250); //Keep those between 100-250 tiles away
+
+    if (townList.IsEmpty()) return -2;
+
+    townList.Valuate(AIBase.RandItem);
+    townList.Sort(AIList.SORT_BY_VALUE, AIList.SORT_ASCENDING); //randomize the list
+
+    second = townList.Begin(); //get the top one, that's the second town
+
+    return [first, second];
 }

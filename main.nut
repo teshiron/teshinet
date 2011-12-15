@@ -11,6 +11,7 @@ Road <- SuperLib.Road;
 Result <- SuperLib.Result;
 Station <- SuperLib.Station;
 Direction <- SuperLib.Direction;
+Airport <- SuperLib.Airport;
 
 require("cargo.nut");
 require("planes.nut");
@@ -179,14 +180,6 @@ function TeshiNet::Start()
 
         }
 
-        if (this.at_max_plane_count) //if we've run out of planes, remove the least profitable air route
-        {
-            Planes.SellStoppedPlanes();
-            Planes.RemoveUnprofRoute();
-            this.at_max_plane_count = false;
-            skipPlaneRoute = true; //same as above
-        }
-
         if (this.GetTick() > (this.last_route_manage_tick + 1400) && (AICompany.GetBankBalance(AICompany.COMPANY_SELF) > 50000))
         {
             if (this.event_queue.Count() > 0)
@@ -216,7 +209,6 @@ function TeshiNet::Start()
                 NewRoadRoute();
             }
         }
-
 
         //build a new plane route if there's enough cash
         if (AICompany.GetBankBalance(AICompany.COMPANY_SELF) > 500000 && this.GetTick() > (this.last_air_route + 5000))
@@ -590,7 +582,7 @@ function TeshiNet::SelectSubsidy()
     subsList.Valuate(AIBase.RandItem);
     subsList.Sort(AIList.SORT_BY_VALUE, AIList.SORT_ASCENDING);
 
-    for (local currentSub = subsList.Begin(); !subsList.IsEnd(); subsList.Next())
+    for (local currentSub = subsList.Begin(); !subsList.IsEnd(); currentSub = subsList.Next())
     {
         local source = AISubsidy.GetSourceIndex(currentSub);
         local dest = AISubsidy.GetDestinationIndex(currentSub);
@@ -1027,19 +1019,24 @@ function TeshiNet::RemoveLeastProfRoadRoute()
 
     local staList = AIStationList(AIStation.STATION_BUS_STOP);
 
-    for (local route = staList.Begin; !staList.IsEnd(); staList.Next()) //iterate through bus stations
+    for (local route = staList.Begin(); !staList.IsEnd(); route = staList.Next()) //iterate through bus stations
     {
         local vehicles = AIVehicleList_Station(route);
 
         if (vehicles.IsEmpty())
         {
+            Log.Info("No vehicles for station " + AIStation.GetName(route), Log.LVL_DEBUG);
             continue;
         }
 
         vehicles.Valuate(AIVehicle.GetAge); //how old are they?
         vehicles.KeepAboveValue(365 * 2); //we only want to calculate on vehicles that have had two full years to run. this ensures last year's profit is a full year.
 
-        if (vehicles.IsEmpty()) continue; //young route? give it a chance.
+        if (vehicles.IsEmpty())
+        {
+            Log.Info("All vehicles for " + AIStation.GetName(route) + " are less than 2 years old.", Log.LVL_DEBUG);
+            continue; //young route? give it a chance.
+        }
 
         vehicles.Valuate(AIVehicle.GetProfitLastYear);
 
@@ -1051,14 +1048,14 @@ function TeshiNet::RemoveLeastProfRoadRoute()
         }
 
         local meanprofit = revenuetotal / vehicles.Count(); //calculate the mean profit (total revenue divided by total vehicle count)
-
+        //Log.Info("Route from " + AIStation.GetName(route) + " averaged " + meanprofit + " pounds per vehicle last year.", Log.LVL_DEBUG);
         routeProfits.AddItem(route, meanprofit); //add this route with profit total to the list.
 
     }
 
     staList = AIStationList(AIStation.STATION_TRUCK_STOP);
 
-    for (local route = staList.Begin(); !staList.IsEnd(); staList.Next()) //iterate through our truck stations
+    for (local route = staList.Begin(); !staList.IsEnd(); route = staList.Next()) //iterate through our truck stations
     {
         local vehicles = AIVehicleList_Station(route);
 
@@ -1079,7 +1076,7 @@ function TeshiNet::RemoveLeastProfRoadRoute()
         }
 
         local meanprofit = revenuetotal / vehicles.Count(); //calculate the mean profit (total revenue divided by total vehicle count)
-
+        //Log.Info("Route from " + AIStation.GetName(route) + " averaged " + meanprofit + " pounds per vehicle last year.", Log.LVL_DEBUG);
         routeProfits.AddItem(route, meanprofit); //add this route with profit total to the list.
     }
 
@@ -1200,7 +1197,7 @@ function TeshiNet::GetIndustryPair()
     sourceList.Valuate(AIBase.RandRangeItem, 32767);
     sourceList.Sort(AIList.SORT_BY_VALUE, AIList.SORT_ASCENDING);
 
-    for (source = sourceList.Begin(); !sourceList.IsEnd(); sourceList.Next())
+    for (source = sourceList.Begin(); !sourceList.IsEnd(); source = sourceList.Next())
     {
         if (AIIndustry.GetLastMonthProduction(source, cargo) == 0) continue;
         if (AIIndustry.IsBuiltOnWater(source)) continue;
@@ -1304,7 +1301,6 @@ function TeshiNet::SellUnusedVehicles() //find vehicles without orders, send the
 
 function TeshiNet::ForceSellUnusedVeh() //when the main function can't handle it, build a depot and try again
 {
-    Log.Info("Trying to build a depot to sell these.", Log.LVL_SUB_DECISIONS);
     local longList = AIList();
     local deadVehicles = AIVehicleList();
 
@@ -1340,6 +1336,32 @@ function TeshiNet::ForceSellUnusedVeh() //when the main function can't handle it
     {
         return 1;
     }
+
+    Log.Info("Selling any already stopped in depots.", Log.LVL_SUB_DECISIONS);
+
+    local longList2 = AIList();
+    longList2.AddList(longList);
+
+    longList2.Valuate(AIVehicle.IsStoppedInDepot);
+    longList2.KeepValue(1);
+
+    if (!longList2.IsEmpty())
+    {
+        foreach (veh, _ in longList2)
+        {
+            if (AIVehicle.SellVehicle(veh))
+            {
+                longList.RemoveItem(veh)
+            }
+        }
+    }
+
+    if (longList.Count() == 0)
+    {
+        return 1;
+    }
+
+    Log.Info("Trying to build a depot to sell these.", Log.LVL_SUB_DECISIONS);
 
     //build a depot
     local depotLoc = Road.BuildDepotNextToRoad(AIVehicle.GetLocation(longList.Begin()), 1, 500);
@@ -1403,7 +1425,7 @@ function TeshiNet::RemoveUnprofitableRoadRoute()
 
     local staList = AIStationList(AIStation.STATION_BUS_STOP);
 
-    for (local route = staList.Begin(); !staList.IsEnd(); staList.Next()) //iterate through our bus stations
+    for (local route = staList.Begin(); !staList.IsEnd(); route = staList.Next()) //iterate through our bus stations
     {
         local vehicles = AIVehicleList_Station(route);
 
@@ -1430,7 +1452,7 @@ function TeshiNet::RemoveUnprofitableRoadRoute()
 
     staList = AIStationList(AIStation.STATION_TRUCK_STOP);
 
-    for (local route = staList.Begin(); !staList.IsEnd(); staList.Next()) //iterate through our truck stations
+    for (local route = staList.Begin(); !staList.IsEnd(); route = staList.Next()) //iterate through our truck stations
     {
         local vehicles = AIVehicleList_Station(route);
 
