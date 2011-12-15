@@ -5,7 +5,7 @@ class TeshiNet extends AIInfo
     function GetDescription() { return "An AI primarily using road vehicles, can transport most types of cargo."; }
     function GetVersion()     { return 4; }
     function MinVersionToLoad() { return 4; }
-    function GetDate()        { return "2011-12-07"; }
+    function GetDate()        { return "2011-12-15"; }
     function CreateInstance() { return "TeshiNet"; }
     function GetShortName()   { return "TESH"; }
     function GetAPIVersion()  { return "1.0"; }
