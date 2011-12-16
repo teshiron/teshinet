@@ -361,7 +361,7 @@ function TeshiNet::Load(version, data)
     Log.Info("Loading towns serviced...", Log.LVL_DEBUG);
     this.towns_used = AIList();
 
-    foreach (x, _ in data.rawget("townsused"))
+    foreach (x in data.rawget("townsused"))
     {
         this.towns_used.AddItem(x, 1);
     }
@@ -370,7 +370,7 @@ function TeshiNet::Load(version, data)
 
     if (data.rawin("industriesused"))
     {
-        foreach (g, _ in data.rawget("industriesused"))
+        foreach (g in data.rawget("industriesused"))
         {
             this.industries_used.AddItem(g, 1);
         }
@@ -400,18 +400,23 @@ function TeshiNet::Load(version, data)
         this.station_pairs.AddItem(a, b);
     }
 
+    local sta_by_ind = {};
+
     if (data.rawin("sta_by_ind"))
     {
-        local sta_by_ind = data.rawget("sta_by_ind");
+        sta_by_ind = data.rawget("sta_by_ind");
+
         foreach (t, r in sta_by_ind)
         {
             this.stations_by_industry.AddItem(t, r);
         }
     }
 
+    local ind_by_sta = {};
+
     if (data.rawin("ind_by_sta"))
     {
-        local ind_by_sta = data.rawget("ind_by_sta");
+        ind_by_sta = data.rawget("ind_by_sta");
         foreach (p, q in ind_by_sta)
         {
             this.industries_by_station.AddItem(p, q);
@@ -447,7 +452,7 @@ function TeshiNet::NewRoadRoute()
     local startIdx = AISubsidy.GetSourceIndex(mySubsidy);
     local destIdx = AISubsidy.GetDestinationIndex(mySubsidy);
     local townPair = null;
-    local indPair = null;
+    local indPair = {};
 
     if (AISubsidy.IsValidSubsidy(mySubsidy))
     {
@@ -468,7 +473,29 @@ function TeshiNet::NewRoadRoute()
         }
         else
         {
-            Cargo.BuildCargoRoute(startIdx, destIdx, cargoType);
+            switch (AISubsidy.GetSourceType(mySubsidy))
+            {
+                case AISubsidy.SPT_INDUSTRY:
+                    local sourceIsTown = false;
+                    break;
+
+                case AISubsidy.SPT_TOWN:
+                    local sourceIsTown = true;
+                    break;
+            }
+
+            switch (AISubsidy.GetDestinationType(mySubsidy))
+            {
+                case AISubsidy.SPT_INDUSTRY:
+                    local destIsTown = false;
+                    break;
+
+                case AISubsidy.SPT_TOWN:
+                    local destIsTown = true;
+                    break;
+            }
+
+            Cargo.BuildCargoRoute(startIdx, destIdx, cargoType, sourceIsTown, destIsTown);
         }
     }
     else
@@ -497,29 +524,35 @@ function TeshiNet::NewRoadRoute()
             }
             else
             {
-            Log.Info("Looking for an industry pair.", Log.LVL_SUB_DECISIONS);
+                Log.Info("Looking for an industry pair.", Log.LVL_SUB_DECISIONS);
                 indPair = GetIndustryPair();
-                if (indPair == -1)
-            {
-                return -1;
-            }
-            Log.Info("Found a suitable industry pair, building route.", Log.LVL_SUB_DECISIONS);
-            Cargo.BuildCargoRoute(indPair[0], indPair[1], indPair[2]);
-            this.last_route_type = indPair[2];
+
+                if (indPair.failed)
+                {
+                    return -1;
+                }
+
+                Log.Info("Found a suitable industry pair, building route.", Log.LVL_SUB_DECISIONS);
+
+                Cargo.BuildCargoRoute(indPair.source, indPair.dest, indPair.cargo, indPair.sourceIsTown, indPair.destIsTown);
+                this.last_route_type = indPair.cargo;
             }
         }
         else
         {
-        Log.Info("Looking for an industry pair.", Log.LVL_SUB_DECISIONS);
-        indPair = GetIndustryPair();
-        if (indPair == -1)
-        {
-            return -1;
+            Log.Info("Looking for an industry pair.", Log.LVL_SUB_DECISIONS);
+            indPair = GetIndustryPair();
+
+            if (indPair.failed)
+            {
+                return -1;
+            }
+
+            Log.Info("Found a suitable industry pair, building route.", Log.LVL_SUB_DECISIONS);
+
+            Cargo.BuildCargoRoute(indPair.source, indPair.dest, indPair.cargo, indPair.sourceIsTown, indPair.destIsTown);
+            this.last_route_type = indPair.cargo;
         }
-        Log.Info("Found a suitable industry pair, building route.", Log.LVL_SUB_DECISIONS);
-        Cargo.BuildCargoRoute(indPair[0], indPair[1], indPair[2]);
-        this.last_route_type = indPair[2];
-    }
     }
 }
 
@@ -617,12 +650,6 @@ function TeshiNet::SelectSubsidy()
 
             if (this.stations_by_industry.HasItem(source) && this.stations_by_industry.HasItem(dest)) //check if we serve both industries
             {
-                continue;
-            }
-
-            if (cargo == this.goods_cargo_id || cargo == this.mail_cargo_id)
-            {
-                Log.Info("Cargo type is delivered to a town, which our route construction cannot handle. Skipping.", Log.LVL_DEBUG);
                 continue;
             }
 
@@ -1143,13 +1170,14 @@ function TeshiNet::RemoveRoadRoute(start_station, end_station)
 
 function TeshiNet::GetIndustryPair()
 {
-
-    local pair = null;
+    local pair = {};
     local cargo = null;
     local source = null;
     local dest = null;
     local cargoList = AICargoList();
     local maxDist = null;
+    local sourceIsTown = null;
+    local destIsTown = null;
 
     local curYear = AIDate.GetYear(AIDate.GetCurrentDate());
 
@@ -1179,54 +1207,186 @@ function TeshiNet::GetIndustryPair()
 
     if (cargo == this.passenger_cargo_id) cargo = cargoList.Next();
 
-    if (cargo == this.mail_cargo_id) cargo = cargoList.Next();
+    local te = AICargo.GetTownEffect(cargo);
 
-    if (AICargo.GetTownEffect(cargo) == AICargo.TE_GOODS) cargo = cargoList.Next();
+    if (te != AICargo.TE_NONE)
+    {
+        switch (te)
+        {
+            case AICargo.TE_GOODS:
+                sourceIsTown = false;
+                destIsTown = true;
+                break;
+
+            case AICargo.TE_FOOD:
+                sourceIsTown = false;
+                destIsTown = true;
+                break;
+
+            case AICargo.TE_MAIL:
+                sourceIsTown = true;
+                destIsTown = true;
+                break;
+
+            case AICargo.TE_WATER:
+                sourceIsTown = false;
+                destIsTown = true;
+                break;
+
+            default:
+                cargo = cargoList.Next();
+        }
+    }
+    else
+    {
+        sourceIsTown = false;
+        destIsTown = false;
+    }
 
     Log.Info("We're going to look for " + AICargo.GetCargoLabel(cargo) + " industries.", Log.LVL_SUB_DECISIONS);
 
-    local sourceList = AIIndustryList_CargoProducing(cargo);
-
-    sourceList.RemoveList(this.industries_used); //remove the industries we already use
-
-    sourceList.Valuate(AIIndustry.GetLastMonthProduction, cargo);  //valuate by total production
-    sourceList.Sort(AIList.SORT_BY_VALUE, AIList.SORT_DESCENDING);
-
-    sourceList.KeepTop(sourceList.Count() / 2); //keep the top half
-
-    sourceList.Valuate(AIBase.RandRangeItem, 32767);
-    sourceList.Sort(AIList.SORT_BY_VALUE, AIList.SORT_ASCENDING);
-
-    for (source = sourceList.Begin(); !sourceList.IsEnd(); source = sourceList.Next())
+    if (!sourceIsTown && !destIsTown)
     {
-        if (AIIndustry.GetLastMonthProduction(source, cargo) == 0) continue;
-        if (AIIndustry.IsBuiltOnWater(source)) continue;
+        local sourceList = AIIndustryList_CargoProducing(cargo);
 
-        local destList = AIIndustryList_CargoAccepting(cargo);
-        destList.RemoveList(this.industries_used);
+        sourceList.RemoveList(this.industries_used); //remove the industries we already use
 
-        destList.Valuate(IndustryDistance, AIIndustry.GetLocation(source));
-        destList.KeepBetweenValue(10, maxDist);
+        sourceList.Valuate(AIIndustry.GetLastMonthProduction, cargo);  //valuate by total production
+        sourceList.Sort(AIList.SORT_BY_VALUE, AIList.SORT_DESCENDING);
 
-        if (destList.IsEmpty()) continue;
+        sourceList.KeepTop(sourceList.Count() / 2); //keep the top half
 
-        destList.Valuate(AIBase.RandItem);
-        destList.Sort(AIList.SORT_BY_VALUE, AIList.SORT_ASCENDING);
+        sourceList.Valuate(AIBase.RandItem);
+        sourceList.Sort(AIList.SORT_BY_VALUE, AIList.SORT_ASCENDING);
 
-        dest = destList.Begin();
-        break;
+        for (source = sourceList.Begin(); !sourceList.IsEnd(); source = sourceList.Next())
+        {
+            if (AIIndustry.GetLastMonthProduction(source, cargo) == 0) continue;
+            if (AIIndustry.IsBuiltOnWater(source)) continue;
+
+            local destList = AIIndustryList_CargoAccepting(cargo);
+            destList.RemoveList(this.industries_used);
+
+            destList.Valuate(IndustryDistance, AIIndustry.GetLocation(source));
+            destList.KeepBetweenValue(10, maxDist);
+
+            if (destList.IsEmpty()) continue;
+
+            if (destList.Count() > 1)
+            {
+                destList.Valuate(AIBase.RandItem);
+                destList.Sort(AIList.SORT_BY_VALUE, AIList.SORT_ASCENDING);
+            }
+
+            dest = destList.Begin();
+            break;
+        }
+    }
+
+    if (!sourceIsTown && destIsTown)
+    {
+        local sourceList = AIIndustryList_CargoProducing(cargo);
+
+        sourceList.RemoveList(this.industries_used); //remove the industries we already use
+
+        sourceList.Valuate(AIIndustry.GetLastMonthProduction, cargo);  //valuate by total production
+        sourceList.Sort(AIList.SORT_BY_VALUE, AIList.SORT_DESCENDING);
+
+        sourceList.KeepTop(sourceList.Count() / 2); //keep the top half
+
+        sourceList.Valuate(AIBase.RandItem);
+        sourceList.Sort(AIList.SORT_BY_VALUE, AIList.SORT_ASCENDING);
+
+        for (source = sourceList.Begin(); !sourceList.IsEnd(); source = sourceList.Next())
+        {
+            if (AIIndustry.GetLastMonthProduction(source, cargo) == 0) continue;
+            if (AIIndustry.IsBuiltOnWater(source)) continue;
+
+            local destList = AITownList();
+
+            destList.Valuate(AITown.GetPopulation);
+            destList.KeepAbove(999); //towns above 1K pop should accept all cargoes
+
+            destList.Valuate(TownDistance, AIIndustry.GetLocation(source));
+            destList.KeepBetweenValue(10, maxDist);
+
+            if (destList.IsEmpty()) continue;
+
+            if (destList.Count() > 1)
+            {
+                destList.Valuate(AIBase.RandItem);
+                destList.Sort(AIList.SORT_BY_VALUE, AIList.SORT_ASCENDING);
+            }
+
+            dest = destList.Begin();
+            break;
+        }
+    }
+
+    if (sourceIsTown)
+    {
+        local sourceList = AITownList();
+
+        sourceList.Valuate(AITown.GetPopulation);
+        sourceList.KeepAboveValue(999); //towns above 1K should produce all eligible cargoes
+
+        sourceList.Valuate(AIBase.RandItem);
+        sourceList.Sort(AIList.SORT_BY_VALUE, AIList.SORT_ASCENDING);
+
+        for (source = sourceList.Begin(); !sourceList.IsEnd(); source = sourceList.Next())
+        {
+            local destList = AITownList();
+
+            destList.Valuate(AITown.GetPopulation);
+            destList.KeepAbove(999); //towns above 1K pop should accept all cargoes
+
+            destList.Valuate(TownDistance, AITown.GetLocation(source));
+            destList.KeepBetweenValue(10, maxDist);
+
+            if (destList.IsEmpty()) continue;
+
+            if (destList.Count() > 1)
+            {
+                destList.Valuate(AIBase.RandItem);
+                destList.Sort(AIList.SORT_BY_VALUE, AIList.SORT_ASCENDING);
+            }
+
+            dest = destList.Begin();
+            break;
+        }
     }
 
     if (dest == null)
     {
         Log.Info("Unable to find a matching pair for this type of cargo.  Will skip.", Log.LVL_SUB_DECISIONS);
         this.last_cargo = cargo;
-        return -1;
+        pair.failed <- true;
+        return pair;
     }
 
-    pair = [source, dest, cargo];
+    pair.source <- source;
+    pair.dest <- dest;
+    pair.cargo <- cargo;
+    pair.sourceIsTown <- sourceIsTown;
+    pair.destIsTown <- destIsTown;
+    pair.failed <- false;
 
-    Log.Info("Industry pair found: " + AIIndustry.GetName(source) + " to " + AIIndustry.GetName(dest), Log.LVL_SUB_DECISIONS);
+    //for proper logging
+    if (destIsTown)
+    {
+        if (sourceIsTown)
+        {
+            Log.Info("Cargo route found from " + AITown.GetName(source) + " to " + AITown.GetName(dest), Log.LVL_SUB_DECISIONS);
+        }
+        else
+        {
+            Log.Info("Cargo route found from " + AIIndustry.GetName(source) + " to " + AITown.GetName(dest), Log.LVL_SUB_DECISIONS);
+        }
+    }
+    else
+    {
+        Log.Info("Industry pair found: " + AIIndustry.GetName(source) + " to " + AIIndustry.GetName(dest), Log.LVL_SUB_DECISIONS);
+    }
 
     return pair;
 }

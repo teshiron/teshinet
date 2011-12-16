@@ -3,11 +3,8 @@ class Cargo
 
 };
 
-function Cargo::BuildCargoRoute(indStart, indEnd, cargoType)
+function Cargo::BuildCargoRoute(indStart, indEnd, cargoType, sourceIsTown = false, destIsTown = false)
 {
-    //TODO: keep it from building depots that face other depots (possibly stations too?)
-    //Log.Info("indStart = " + indStart + "; indEnd = " + indEnd + "; cargoType = " + cargoType, Log.LVL_DEBUG);
-
     //Find a place for the source station
     AIRoad.SetCurrentRoadType(AIRoad.ROADTYPE_ROAD);
 
@@ -16,10 +13,26 @@ function Cargo::BuildCargoRoute(indStart, indEnd, cargoType)
     local startDepotTile = -1;
     local endDepotTile = -1;
 
-    startStationTile = Road.BuildStopForIndustry(indStart, cargoType); //build starting station via superlib
-    endStationTile = Road.BuildStopForIndustry(indEnd, cargoType); //build ending station via superlib
+    //build stations via SuperLib
+    if (sourceIsTown)
+    {
+        startStationTile = Road.BuildStopInTown(indStart, AIRoad.ROADVEHTYPE_TRUCK, -1, cargoType);
+    }
+    else
+    {
+        startStationTile = Road.BuildStopForIndustry(indStart, cargoType);
+    }
 
-    if (!startStationTile || !endStationTile)
+    if (destIsTown)
+    {
+        endStationTile = Road.BuildStopInTown(indEnd, AIRoad.ROADVEHTYPE_TRUCK, cargoType, -1);
+    }
+    else
+    {
+        endStationTile = Road.BuildStopForIndustry(indEnd, cargoType);
+    }
+
+    if (!AIMap.IsValidTile(startStationTile) || !AIMap.IsValidTile(endStationTile))
     {
         Log.Error("Either the start or ending station did not get built. Aborting.", Log.LVL_INFO);
         return -1;
@@ -42,7 +55,7 @@ function Cargo::BuildCargoRoute(indStart, indEnd, cargoType)
     startDepotTile = Road.BuildDepotNextToRoad(startStationTile, 1, 500);
     endDepotTile = Road.BuildDepotNextToRoad(endStationTile, 1, 500);
 
-    if (!startDepotTile || !endDepotTile)
+    if (!AIMap.IsValidTile(startDepotTile) || !AIMap.IsValidTile(endDepotTile))
     {
         Log.Error("Either the start or ending depot did not get built. Aborting.", Log.LVL_INFO);
         return -1;
@@ -69,7 +82,7 @@ function Cargo::BuildCargoRoute(indStart, indEnd, cargoType)
     vehList.Valuate(AIEngine.IsBuildable);
     vehList.KeepValue(1);
 
-    //and only road buses, not trams
+    //and only road trucks, not trams
     vehList.Valuate(AIEngine.GetRoadType);
     vehList.KeepValue(AIRoad.ROADTYPE_ROAD);
 
@@ -89,7 +102,7 @@ function Cargo::BuildCargoRoute(indStart, indEnd, cargoType)
         vehList.Valuate(AIEngine.IsBuildable);
         vehList.KeepValue(1);
 
-        //and only road buses, not trams
+        //and only road trucks, not trams
         vehList.Valuate(AIEngine.GetRoadType);
         vehList.KeepValue(AIRoad.ROADTYPE_ROAD);
 
@@ -164,14 +177,21 @@ function Cargo::BuildCargoRoute(indStart, indEnd, cargoType)
     }
 
     //make sure we don't use these industries again
-    this.industries_used.AddItem(indStart, AIIndustry.GetLocation(indStart));
-    this.industries_used.AddItem(indEnd, AIIndustry.GetLocation(indEnd));
+    if (!sourceIsTown) this.industries_used.AddItem(indStart, AIIndustry.GetLocation(indStart));
+    if (!destIsTown) this.industries_used.AddItem(indEnd, AIIndustry.GetLocation(indEnd));
 
     //record the station/industry mapping, for later closures etc.
-    this.stations_by_industry.AddItem(indStart, AIStation.GetStationID(startStationTile));
-    this.industries_by_station.AddItem(AIStation.GetStationID(startStationTile), indStart);
-    this.stations_by_industry.AddItem(indEnd, AIStation.GetStationID(endStationTile));
-    this.industries_by_station.AddItem(AIStation.GetStationID(endStationTile), indEnd);
+    if (!sourceIsTown)
+    {
+        this.stations_by_industry.AddItem(indStart, AIStation.GetStationID(startStationTile));
+        this.industries_by_station.AddItem(AIStation.GetStationID(startStationTile), indStart);
+    }
+
+    if (!destIsTown)
+    {
+        this.stations_by_industry.AddItem(indEnd, AIStation.GetStationID(endStationTile));
+        this.industries_by_station.AddItem(AIStation.GetStationID(endStationTile), indEnd);
+    }
 
     this.last_route_tick = TeshiNet.GetTick(); //record time of route creation
 
