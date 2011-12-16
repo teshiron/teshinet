@@ -456,7 +456,10 @@ function TeshiNet::NewRoadRoute()
 
     if (AISubsidy.IsValidSubsidy(mySubsidy))
     {
-        local cargoType = AISubsidy.GetCargoType(mySubsidy)
+        local cargoType = AISubsidy.GetCargoType(mySubsidy);
+        local sourceType = AISubsidy.GetSourceType(mySubsidy);
+        local destType = AISubsidy.GetDestinationType(mySubsidy);
+        local sourceIsTown, destIsTown;
 
         if (cargoType == this.passenger_cargo_id)
         {
@@ -473,25 +476,25 @@ function TeshiNet::NewRoadRoute()
         }
         else
         {
-            switch (AISubsidy.GetSourceType(mySubsidy))
+            switch (sourceType)
             {
                 case AISubsidy.SPT_INDUSTRY:
-                    local sourceIsTown = false;
+                    sourceIsTown = false;
                     break;
 
                 case AISubsidy.SPT_TOWN:
-                    local sourceIsTown = true;
+                    sourceIsTown = true;
                     break;
             }
 
-            switch (AISubsidy.GetDestinationType(mySubsidy))
+            switch (destType)
             {
                 case AISubsidy.SPT_INDUSTRY:
-                    local destIsTown = false;
+                    destIsTown = false;
                     break;
 
                 case AISubsidy.SPT_TOWN:
-                    local destIsTown = true;
+                    destIsTown = true;
                     break;
             }
 
@@ -1305,7 +1308,7 @@ function TeshiNet::GetIndustryPair()
             local destList = AITownList();
 
             destList.Valuate(AITown.GetPopulation);
-            destList.KeepAbove(999); //towns above 1K pop should accept all cargoes
+            destList.KeepAboveValue(999); //towns above 1K pop should accept all cargoes
 
             destList.Valuate(TownDistance, AIIndustry.GetLocation(source));
             destList.KeepBetweenValue(10, maxDist);
@@ -1338,7 +1341,7 @@ function TeshiNet::GetIndustryPair()
             local destList = AITownList();
 
             destList.Valuate(AITown.GetPopulation);
-            destList.KeepAbove(999); //towns above 1K pop should accept all cargoes
+            destList.KeepAboveValue(999); //towns above 1K pop should accept all cargoes
 
             destList.Valuate(TownDistance, AITown.GetLocation(source));
             destList.KeepBetweenValue(10, maxDist);
