@@ -32,7 +32,7 @@ function Cargo::BuildCargoRoute(indStart, indEnd, cargoType, sourceIsTown = fals
         endStationTile = Road.BuildStopForIndustry(indEnd, cargoType);
     }
 
-    if (!AIMap.IsValidTile(startStationTile) || !AIMap.IsValidTile(endStationTile))
+    if (!startStationTile || !endStationTile) //BuildStopInTown returns "null" for failure
     {
         Log.Error("Either the start or ending station did not get built. Aborting.", Log.LVL_INFO);
         return -1;
