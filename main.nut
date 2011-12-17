@@ -583,25 +583,25 @@ function TeshiNet::SelectSubsidy()
         return -1;
     }
 
-    //Let's check the awarded passenger subsidies, if any belong to us, we go cargo only.
-    subsList.Valuate(AISubsidy.IsAwarded);
-    subsList.KeepValue(1);
-    subsList.Valuate(AISubsidy.GetCargoType);
-    subsList.KeepValue(this.passenger_cargo_id);
-
-    foreach (curSub, _ in subsList)
+    //If we're set for play_nicely, check if we already have a subsidy, and fail if we do.
+    if (AIController.GetSetting("play_nicely") == 1)
     {
-        local awardCo = AISubsidy.GetAwardedTo(curSub);
+        subsList.Valuate(AISubsidy.IsAwarded);
+        subsList.KeepValue(1);
 
-        if (AICompany.IsMine(awardCo))
+        foreach (curSub, _ in subsList)
         {
-            Log.Info("We already have an awarded passenger subsidy.", Log.LVL_DEBUG);
-            cargoOnly = true;
-            break;
+            local awardCo = AISubsidy.GetAwardedTo(curSub);
+
+            if (AICompany.IsMine(awardCo))
+            {
+                Log.Info("We already have an awarded subsidy, and are playing nicely. No subsidy.", Log.LVL_SUB_DECISIONS);
+                return -1;
+            }
         }
     }
 
-    subsList=AISubsidyList(); //repopulate the list
+    subsList = AISubsidyList(); //repopulate the list
 
     //now we keep only the available subs
     subsList.Valuate(AISubsidy.IsAwarded);
@@ -696,6 +696,7 @@ function TeshiNet::BuildPassengerRoute(townStart, townEnd)
     else
     {
         Log.Error("One or more stations or depots were not built. Aborting.", Log.LVL_INFO); //if not, remove what did get built
+        Log.Info("startStationID = " + startStationID + ", endStationID = " + endStationID, Log.LVL_DEBUG);
         if (AIStation.IsValidStation(startStationID))
         {
             Station.DemolishStation(startStationID);
