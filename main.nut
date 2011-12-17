@@ -156,13 +156,6 @@ function TeshiNet::Start()
             }
         }
 
-        if (this.towns_used.IsEmpty() && this.industries_used.IsEmpty()) //get a loan if we're a new company
-        {
-            Log.Info("Setting loan to max loan for startup cash.", Log.LVL_SUB_DECISIONS);
-            local tmp = AICompany.GetMaxLoanAmount();
-            AICompany.SetMinimumLoanAmount(tmp.tointeger());
-        }
-
         if (this.event_queue.Count() > 0)
         {
             skipNewRoute = true; //do not build a new route with queued events -- new vehicles may mess up events
@@ -177,21 +170,36 @@ function TeshiNet::Start()
             this.at_max_RV_count = false;
             this.last_unprof_route_check = this.GetTick();
             skipNewRoute = true; //if we've just run out of vehicles, don't build a new route, to allow vehicle slack for improvements
-
         }
 
-        if (this.GetTick() > (this.last_route_manage_tick + 1400) && (AICompany.GetBankBalance(AICompany.COMPANY_SELF) > 50000))
+        if (this.GetTick() > (this.last_route_manage_tick + 1400))
         {
             if (this.event_queue.Count() > 0)
             {
-                Log.Info("No route management while queued events are pending.", Log.LVL_INFO); //building new vehicles will mess up events
+                Log.Info("No route management while queued events are pending.", Log.LVL_INFO); //building new vehicles may mess up events
             }
             else
             {
                 Log.Info("Managing existing routes.", Log.LVL_INFO);
-                Cargo.ManageBusyTruckStations();
-                ManageBusyBusStations();
-                Planes.ManageBusyAirports();
+
+                local costs = AIAccounting();
+                local old_balance = Money.MaxLoan();
+
+                if (AICompany.GetBankBalance(AICompany.COMPANY_SELF) < 50000)
+                {
+                    Log.Warning("Not enough money to manage routes.", Log.LVL_INFO);
+                }
+                else
+                {
+                    Cargo.ManageBusyTruckStations();
+                    ManageBusyBusStations();
+                    Planes.ManageBusyAirports();
+                }
+
+                Money.RestoreLoan(old_balance);
+
+                Log.Info("New vehicles cost " + costs.GetCosts() + " pounds.", Log.LVL_SUB_DECISIONS);
+
                 this.last_route_manage_tick = this.GetTick();
             }
         }
@@ -202,11 +210,15 @@ function TeshiNet::Start()
         }
 
         //Build a new road route if there's enough cash.
-        if (AICompany.GetBankBalance(AICompany.COMPANY_SELF) > 50000 && this.GetTick() > (this.last_route_tick + 1000))
+        if (this.GetTick() > (this.last_route_tick + 1000))
         {
             if (!skipNewRoute)
             {
+                local old_balance = Money.MaxLoan();
+
                 NewRoadRoute();
+
+                Money.RestoreLoan(old_balance);
             }
         }
 
@@ -219,14 +231,6 @@ function TeshiNet::Start()
                 if (ret != -1) this.last_air_route = this.GetTick();
             }
         }
-
-        /* if (this.GetTick() > (this.last_plane_check + 1250))
-        {
-            //TODO: find planes with only one order and remove the airport -- the route was not built right.
-            Planes.RemoveUnprofPlanes();
-            Planes.SellStoppedPlanes();
-            this.last_plane_check = this.GetTick();
-        } */
 
         if (this.GetTick() > (this.last_loan_pmt_tick + 1850)) //pay off loan .
         {
@@ -287,7 +291,11 @@ function TeshiNet::Start()
         //Handle a queued event
         if (this.event_queue.Count() > 0)
         {
+            local old_balance = Money.MaxLoan();
+
             EventHandler();
+
+            Money.RestoreLoan(old_balance);
         }
 
         Log.Info("End of main loop: tick " + this.GetTick(), Log.LVL_DEBUG);
@@ -682,8 +690,8 @@ function TeshiNet::BuildPassengerRoute(townStart, townEnd)
     local startReturn = Road.BuildMagicDTRSInTown(townStart, AIRoad.ROADVEHTYPE_BUS, 1);
     local endReturn = Road.BuildMagicDTRSInTown(townEnd, AIRoad.ROADVEHTYPE_BUS, 1);
 
-    local startStationID = startReturn.station_id ? startReturn.station_id : -1;
-    local endStationID = endReturn.station_id ? endReturn.station_id : -1;
+    local startStationID = startReturn.station_id != null ? startReturn.station_id : -1;
+    local endStationID = endReturn.station_id != null ? endReturn.station_id : -1;
     startDepotTile = startReturn.depot_tile;
     endDepotTile = endReturn.depot_tile;
 
