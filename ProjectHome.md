@@ -1,0 +1,1 @@
+TeshiNet is an AI for OpenTTD written and maintained by Teshiron.
