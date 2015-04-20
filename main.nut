@@ -1,4 +1,4 @@
-import("util.superlib", "SuperLib", 17); // Import SuperLib version 16
+import("util.superlib", "SuperLib", 38); // Import SuperLib version 38
 import("Queue.Priority_Queue", "Priority_Queue", 2); //import PriorityQueue
 
 Helper <- SuperLib.Helper;
