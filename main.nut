@@ -1149,23 +1149,35 @@ function TeshiNet::RemoveRoadRoute(start_station, end_station)
     local routeCargo = AIEngine.GetCargoType(deadVehicles.Begin());
     if (routeCargo == this.passenger_cargo_id) passRoute = true;
 
-    Log.Info("Sending vehicles to depot and selling them.", Log.LVL_SUB_DECISIONS);
+    Log.Info("Sending vehicles to depot.", Log.LVL_SUB_DECISIONS);
 
     local depotLoc = this.station_depot_pairs.GetValue(AIStation.GetLocation(deadRoute));
 
     foreach (curVeh, _ in deadVehicles)
     {
-        if (!AIVehicle.SendVehicleToDepot(curVeh))
-        {
-            AIOrder.UnshareOrders(curVeh); //unshare orders
+        local destin = AIOrder.GetOrderDestination(curVeh, AIOrder.ORDER_CURRENT);
+		local name = AIVehicle.GetName(curVeh);
 
-            do //delete existing orders
-            {
-                AIOrder.RemoveOrder(curVeh, 0);
-            } while (AIOrder.GetOrderCount(curVeh) > 0)
+		if (AIRoad.IsRoadDepotTile(destin))
+		{
+			Log.Info("Vehicle " + name + " is already headed to a depot.", Log.LVL_DEBUG);
+		}
+		else
+		{
+			Log.Info("Sending vehicle " + name + " to depot.", Log.LVL_DEBUG);
 
-            AIOrder.AppendOrder(curVeh, depotLoc, AIOrder.AIOF_STOP_IN_DEPOT); //send to depot
-        }
+			if (!AIVehicle.SendVehicleToDepot(curVeh))
+			{
+				AIOrder.UnshareOrders(curVeh); //unshare orders
+
+				do //delete existing orders
+				{
+					AIOrder.RemoveOrder(curVeh, 0);
+				} while (AIOrder.GetOrderCount(curVeh) > 0)
+
+				AIOrder.AppendOrder(curVeh, depotLoc, AIOrder.AIOF_STOP_IN_DEPOT); //send to depot
+			}
+		}
     }
 
     Log.Info("Vehicles sent to depot.  Station removal routines will clean up the rest.", Log.LVL_SUB_DECISIONS);
