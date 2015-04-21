@@ -1,9 +1,7 @@
 TeshiNet is an AI for OpenTTD written and maintained by Teshiron.
 
-Change Log:
-
-# v5 #
-In development.  Notes current through [r61](https://code.google.com/p/teshinet/source/detail?r=61).
+## v5.0 ##
+In development.  You can test this version by checking out branch v5.
 
   * Now uses API version 1.1.
   * Freight delivery now goes to towns as well as industries, allowing cargoes such as mail, goods, food, and water.  Applies to both subsidies and random routes.
@@ -11,19 +9,27 @@ In development.  Notes current through [r61](https://code.google.com/p/teshinet/
   * Plane routes now start with 4 aircraft instead of 2.
   * Route removal routines now just send the vehicles to a depot and do not wait for them to arrive.
 
-# v4.0.3 #
-Released 2015-04-20
+Planned Enhancements:
+  * Use API 1.5
+  * Ensure route-seeking and subsidy routines filter out oil rigs (until/unless ships are implemented)
+  * Advertise in the nearest town after a vehicle crash to raise cargo ratings
+  * Implement plane upgrade/replacement when better vehicles are available
+
+# Change Log: #
+
+## v4.0.3 ##
+Released 2015-04-20.  The master branch represents this version.
 
   * Because of the impending closure of Google Code, project is now hosted on GitHub. Links to Google Code revision numbers may stop working when that site closes.
   * Bugfix: crash at load due to requiring old version of SuperLib. Now depends on v38.
   * BaNaNaS update: Added PriorityQueue to the dependencies to prevent crashes.
   
-# v4.0.1 #
+## v4.0.1 ##
 Released 2011-12-15 ([r47](https://code.google.com/p/teshinet/source/detail?r=47)+[r57](https://code.google.com/p/teshinet/source/detail?r=57))
 
   * Bugfix: crash at main.nut line 607 due to invalid parameters. Thanks to MAG101 for the bug report.
 
-# v4 #
+## v4.0 ##
 Released 2011-12-12 ([r47](https://code.google.com/p/teshinet/source/detail?r=47)).
 
 Version 4 breaks compatibility with older savegames.  v4 and up cannot load savegames from v3 and previous.
@@ -39,7 +45,7 @@ Version 4 breaks compatibility with older savegames.  v4 and up cannot load save
   * Modified the "enable buses" AI setting so changing it will actually take effect before reloading the game.
   * Removed profitability restriction on adding vehicles to routes, per suggestion from Lowkee33. Also now adds new trucks before buses (in case it runs out of money) as freight cargoes are generally worth more per unit than PAX.
 
-# v3 #
+## v3.0 ##
 Released 2011-12-07 ([r25](https://code.google.com/p/teshinet/source/detail?r=25))
 
   * Many changes to early game route handling and construction to improve viability with more difficult settings -- thanks to Brumi for reporting this issue
