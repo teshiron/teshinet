@@ -176,14 +176,13 @@ function TeshiNet::Start()
         {
             if (this.event_queue.Count() > 0)
             {
-                Log.Info("No route management while queued events are pending.", Log.LVL_INFO); //building new vehicles may mess up events
+                Log.Info("No route management while queued events are pending.", Log.LVL_DEBUG); //building new vehicles may mess up events
             }
             else
             {
                 Log.Info("Managing existing routes.", Log.LVL_INFO);
 
                 local costs = AIAccounting();
-                local old_balance = Money.MaxLoan();
 
                 if (AICompany.GetBankBalance(AICompany.COMPANY_SELF) < 50000)
                 {
@@ -195,8 +194,6 @@ function TeshiNet::Start()
                     ManageBusyBusStations();
                     Planes.ManageBusyAirports();
                 }
-
-                Money.RestoreLoan(old_balance);
 
                 Log.Info("New vehicles cost " + costs.GetCosts() + " pounds.", Log.LVL_SUB_DECISIONS);
 
