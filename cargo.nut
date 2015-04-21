@@ -55,7 +55,10 @@ function Cargo::BuildCargoRoute(indStart, indEnd, cargoType, sourceIsTown = fals
     startDepotTile = Road.BuildDepotNextToRoad(startStationTile, 1, 500);
     endDepotTile = Road.BuildDepotNextToRoad(endStationTile, 1, 500);
 
-    if (!AIMap.IsValidTile(startDepotTile) || !AIMap.IsValidTile(endDepotTile))
+    if (!startDepotTile) { startDepotTile = -1;} //AIMap.IsValidTile doesn't like null values
+	if (!endDepotTile) { endDepotTile = -1; }
+	
+	if (!AIMap.IsValidTile(startDepotTile) || !AIMap.IsValidTile(endDepotTile))
     {
         Log.Error("Either the start or ending depot did not get built. Aborting.", Log.LVL_INFO);
         return -1;
