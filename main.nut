@@ -42,6 +42,7 @@ class TeshiNet extends AIController
     stations_by_industry = null;
     industries_by_station = null;
     last_upgrade_search = 0;
+	remaining_RV_count = 0;
 
     constructor()
     {
@@ -168,7 +169,9 @@ function TeshiNet::Start()
             skipPlaneRoute = true;
         }
 
-        if (this.at_max_RV_count) //if we've run out of road vehicles, remove the least profitable road route
+		UpdateRVCount(); //update the count of remaining RVs we can buy
+		
+        if (this.at_max_RV_count || this.remaining_RV_count < 3) //if we've run out of road vehicles, or can't build at least 3, remove the least profitable road route
         {
             RemoveLeastProfRoadRoute();
             RemoveUnprofitableRoadRoute();
@@ -1954,4 +1957,26 @@ function TeshiNet::EventHandler()
         default:
             Log.Error("An incorrect event was queued.", Log.LVL_INFO);
     }
+}
+
+function TeshiNet::UpdateRVCount()
+{
+	if (AIGameSettings.IsValid("vehicle.max_roadveh"))
+	{
+		Log.Info("Updating road vehicle count...", Log.LVL_DEBUG);
+
+		local veh = AIVehicleList();
+		local maxrvs = AIGameSettings.GetValue("vehicle.max_roadveh");
+		local myrvs = veh.Count();
+
+		this.remaining_RV_count = maxrvs - myrvs;
+
+		Log.Info("Remaining RV count: " + this.remaining_RV_count, Log.LVL_DEBUG);
+		return 1;
+	}
+	else
+	{
+		Log.Error("Maximum road vehicle setting either does not exist or the name has changed.", Log.LVL_INFO);
+		return -1;
+	}
 }
