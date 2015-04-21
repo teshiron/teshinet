@@ -156,7 +156,13 @@ function TeshiNet::Start()
             }
         }
 
+		//Handle a queued event
         if (this.event_queue.Count() > 0)
+        {
+            EventHandler();
+        }
+		
+        if (this.event_queue.Count() > 0) //if there are still events in the queue;
         {
             skipNewRoute = true; //do not build a new route with queued events -- new vehicles may mess up events
             skipPlaneRoute = true;
@@ -283,16 +289,6 @@ function TeshiNet::Start()
             UpgradeRoadVehicles();
             //Planes.UpgradePlanes(); (not implemented yet)
             this.last_upgrade_search = this.GetTick();
-        }
-
-        //Handle a queued event
-        if (this.event_queue.Count() > 0)
-        {
-            local old_balance = Money.MaxLoan();
-
-            EventHandler();
-
-            Money.RestoreLoan(old_balance);
         }
 
         Log.Info("End of main loop: tick " + this.GetTick(), Log.LVL_DEBUG);
