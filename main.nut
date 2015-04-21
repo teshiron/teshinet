@@ -161,7 +161,7 @@ function TeshiNet::Start()
         {
             EventHandler();
         }
-		
+
         if (this.event_queue.Count() > 0) //if there are still events in the queue;
         {
             skipNewRoute = true; //do not build a new route with queued events -- new vehicles may mess up events
@@ -1875,45 +1875,53 @@ function TeshiNet::EventHandler()
             break;
 
         case AIEvent.AI_ET_VEHICLE_CRASHED:
-            local crashEvent = AIEventVehicleCrashed.Convert(event);
+			Log.Info("Handling crashed vehicle event.", Log.LVL_DEBUG);
+
+			local crashEvent = AIEventVehicleCrashed.Convert(event);
             local vehicle = crashEvent.GetVehicleID();
-
-            if (!AIVehicle.IsValidVehicle(vehicle))
-            {
-                Log.Info("Vehicle crashed, but the wreck cleared before we handled the event. Unable to replace vehicle.", Log.LVL_INFO);
-                break;
-            }
-
             local location = crashEvent.GetCrashSite();
             local reason = crashEvent.GetCrashReason();
             local station = AIStation.GetStationID(AIOrder.GetOrderDestination(vehicle, 0));
             local type = AIVehicle.GetVehicleType(vehicle);
+			local town = AITile.GetTownAuthority(location);
 
-            Log.Info("Vehicle crashed. Cloning replacement vehicle.", Log.LVL_INFO);
+			Log.Info("Affected local authority is " + AITown.GetName(town), Log.LVL_DEBUG);
 
-            if (type != AIVehicle.VT_AIR)
+            if (!AIVehicle.IsValidVehicle(vehicle))
             {
-                CloneVehicleByStation(station);
-            }
-            else
-            {
-                AIVehicle.CloneVehicle(AIAirport.GetHangarOfAirport(AIStation.GetLocation(station)), vehicle, true);
-            }
+                Log.Info("Vehicle crashed, but the wreck cleared before we handled the event. Unable to replace vehicle.", Log.LVL_INFO);
 
-            if (reason == AIEventVehicleCrashed.CRASH_RV_LEVEL_CROSSING) //was this a road vehicle run over by a train?
-            {
-                Log.Info("Crash was due to a level crossing. Attempting to grade-separate crossing.", Log.LVL_INFO);
-                local result = GradeSeparateCrossing(location);
-
-                if (result == 1)
-                {
-                    Log.Info("Grade separation successful.", Log.LVL_INFO);
-                }
-                else
-                {
-                    Log.Info("Grade separation unsuccessful.", Log.LVL_INFO);
-                }
             }
+			else
+			{
+				Log.Info("Vehicle crashed. Cloning replacement vehicle.", Log.LVL_INFO);
+
+				if (type != AIVehicle.VT_AIR)
+				{
+					CloneVehicleByStation(station);
+				}
+				else
+				{
+					AIVehicle.CloneVehicle(AIAirport.GetHangarOfAirport(AIStation.GetLocation(station)), vehicle, true);
+				}
+
+				if (reason == AIEventVehicleCrashed.CRASH_RV_LEVEL_CROSSING) //was this a road vehicle run over by a train?
+				{
+					Log.Info("Crash was due to a level crossing. Attempting to grade-separate crossing.", Log.LVL_INFO);
+					local result = GradeSeparateCrossing(location);
+
+					if (result == 1)
+					{
+						Log.Info("Grade separation successful.", Log.LVL_INFO);
+					}
+					else
+					{
+						Log.Info("Grade separation unsuccessful.", Log.LVL_INFO);
+					}
+				}
+			}
+
+			// code to advertise at affected authority goes here
 
             break;
 
