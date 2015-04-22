@@ -895,7 +895,7 @@ function TeshiNet::GetPassengerTownPair()
         townList.RemoveList(this.towns_used);
 
         townList.Valuate(AITown.GetPopulation);
-        townList.KeepAboveValue(499); //only towns 500 people and up
+        townList.KeepAboveValue(299); //only towns 300 people and up for the second town; this should make it slightly easier to build routes early in sub-tropical etc.
 
         townList.Valuate(this.TownDistance, firstloc);
         townList.KeepBetweenValue(10, maxDist);
@@ -915,7 +915,8 @@ function TeshiNet::GetPassengerTownPair()
         Log.Info("Found a second town, " + AITown.GetName(second), Log.LVL_SUB_DECISIONS);
 
     } while (second == -1 && timeout < 10)
-    if (second == -1)
+    
+	if (second == -1)
     {
         Log.Error("Unable to find a suitable town pair.", Log.LVL_INFO);
         return -1;
