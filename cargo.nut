@@ -35,6 +35,10 @@ function Cargo::BuildCargoRoute(indStart, indEnd, cargoType, sourceIsTown = fals
     if (!startStationTile || !endStationTile) //BuildStopInTown returns "null" for failure
     {
         Log.Error("Either the start or ending station did not get built. Aborting.", Log.LVL_INFO);
+
+		if (startStationTile) { Station.DemolishStation(AIStation.GetStationID(startStationTile)); } //remove any stations that were built
+		if (endStationTile) { Station.DemolishStation(AIStation.GetStationID(endStationTile)); }
+
         return -1;
     }
 
@@ -57,7 +61,7 @@ function Cargo::BuildCargoRoute(indStart, indEnd, cargoType, sourceIsTown = fals
 
     if (!startDepotTile) { startDepotTile = -1;} //AIMap.IsValidTile doesn't like null values
 	if (!endDepotTile) { endDepotTile = -1; }
-	
+
 	if (!AIMap.IsValidTile(startDepotTile) || !AIMap.IsValidTile(endDepotTile))
     {
         Log.Error("Either the start or ending depot did not get built. Aborting.", Log.LVL_INFO);
