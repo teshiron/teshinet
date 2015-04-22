@@ -625,10 +625,12 @@ function TeshiNet::SelectSubsidy()
     //now we keep only the available subs
     subsList.Valuate(AISubsidy.IsAwarded);
     subsList.KeepValue(0);
-
-    if (cargoOnly)
+	
+	subsList.Valuate(AISubsidy.GetCargoType);
+	subsList.RemoveValue(this.mail_cargo_id); //do not try for mail subsidy. they are nearly impossible to make profitable with AI-generated stations.
+	
+    if (cargoOnly) //also, remove passenger subsidy if buses are turned off
     {
-        subsList.Valuate(AISubsidy.GetCargoType);
         subsList.RemoveValue(this.passenger_cargo_id);
     }
 
