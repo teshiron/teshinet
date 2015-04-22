@@ -34,9 +34,10 @@ class TeshiNet extends AIController
     cargo_list = null;
     last_cargo = null;
     last_route_type = null;
-    last_unprof_route_check = 0;
+    last_unprof_route_check = -500;
     last_air_route = -1200;
     last_plane_check = 1000;
+	last_veh_sale = -200;
     disable_buses = false;
     event_queue = null;
     stations_by_industry = null;
@@ -147,10 +148,10 @@ function TeshiNet::Start()
                     Log.Info("Queued a vehicle crash.", Log.LVL_DEBUG);
                     break;
 
-                case AIEvent.AI_ET_VEHICLE_WAITING_IN_DEPOT:
+                /* case AIEvent.AI_ET_VEHICLE_WAITING_IN_DEPOT:
                     this.event_queue.Insert(event, 7);
                     Log.Info("Queued a vehicle waiting in depot.", Log.LVL_DEBUG);
-                    break;
+                    break; */
 
                 default:
                     break;
@@ -168,18 +169,27 @@ function TeshiNet::Start()
             skipNewRoute = true; //do not build a new route with queued events -- new vehicles may mess up events
             skipPlaneRoute = true;
         }
+		else //do not remove routes if there are queued events; this should help control duplicate route removals
+		{
+			UpdateRVCount(); //update the count of remaining RVs we can buy
 
-		UpdateRVCount(); //update the count of remaining RVs we can buy
-		
-        if (this.at_max_RV_count || this.remaining_RV_count < 3) //if we've run out of road vehicles, or can't build at least 3, remove the least profitable road route
-        {
-            RemoveLeastProfRoadRoute();
-            RemoveUnprofitableRoadRoute();
-            SellUnusedVehicles();
-            this.at_max_RV_count = false;
-            this.last_unprof_route_check = this.GetTick();
-            skipNewRoute = true; //if we've just run out of vehicles, don't build a new route, to allow vehicle slack for improvements
-        }
+			if (this.at_max_RV_count || this.remaining_RV_count < 3) //if we've run out of road vehicles, or can't build at least 3, remove the least profitable road route
+			{
+				SellStoppedRVs();
+				SellUnusedVehicles();
+
+				if (this.GetTick() > (this.last_unprof_route_check + 500)) //do not kill a route any more often than once every 500 ticks
+				{
+					RemoveLeastProfRoadRoute();
+					RemoveUnprofitableRoadRoute();
+
+					this.at_max_RV_count = false;
+					this.last_unprof_route_check = this.GetTick();
+				}
+
+				skipNewRoute = true; //if we've just run out of vehicles, don't build a new route, to allow vehicle slack for improvements
+			}
+		}
 
         if (this.GetTick() > (this.last_route_manage_tick + 1400))
         {
@@ -293,6 +303,11 @@ function TeshiNet::Start()
             //Planes.UpgradePlanes(); (not implemented yet)
             this.last_upgrade_search = this.GetTick();
         }
+
+		if (this.GetTick() > this.last_veh_sale + 200) //sell stopped RVs in depots every 200 ticks
+		{
+			SellStoppedRVs();
+		}
 
         Log.Info("End of main loop: tick " + this.GetTick(), Log.LVL_DEBUG);
 
@@ -1966,6 +1981,9 @@ function TeshiNet::UpdateRVCount()
 		Log.Info("Updating road vehicle count...", Log.LVL_DEBUG);
 
 		local veh = AIVehicleList();
+		veh.Valuate(AIVehicle.GetVehicleType);
+		veh.KeepValue(AIVehicle.VT_ROAD); //road vehicles only
+
 		local maxrvs = AIGameSettings.GetValue("vehicle.max_roadveh");
 		local myrvs = veh.Count();
 
@@ -1979,4 +1997,33 @@ function TeshiNet::UpdateRVCount()
 		Log.Error("Maximum road vehicle setting either does not exist or the name has changed.", Log.LVL_INFO);
 		return -1;
 	}
+}
+
+function TeshiNet::SellStoppedRVs()
+{
+	Log.Info("Selling road vehicles already stopped in a depot.", Log.LVL_DEBUG);
+
+	local stopped = AIVehicleList();
+	local soldcount = 0;
+	local sold = false;
+
+	stopped.Valuate(AIVehicle.GetVehicleType);
+	stopped.KeepValue(AIVehicle.VT_ROAD); //road vehicles only
+
+	foreach (veh, _ in stopped)
+	{
+		if (AIVehicle.IsStoppedInDepot(veh))
+		{
+			sold = AIVehicle.SellVehicle(veh);
+			if (sold)
+			{
+				soldcount++;
+			}
+		}
+	}
+
+	this.last_veh_sale = this.GetTick();
+
+	Log.Info("Sold " + soldcount + " vehicles.", Log.LVL_DEBUG);
+	return 1;
 }
