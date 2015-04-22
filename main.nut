@@ -530,7 +530,8 @@ function TeshiNet::NewRoadRoute()
                 townPair = GetPassengerTownPair();
                 if (townPair == -1)
                 {
-                    return -1;
+                    this.last_route_type = this.passenger_cargo_id; //do not get stuck in an endless loop trying to build passenger routes; if there is no suitable pair, build cargo.
+					return -1;
                 }
 
                 if (!this.towns_used.HasItem(townPair[0]) && !this.towns_used.HasItem(townPair[1]))
