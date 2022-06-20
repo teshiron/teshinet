@@ -1,24 +1,9 @@
-TeshiNet is an AI for OpenTTD written and maintained by Teshiron.
-
-## v5.0 ##
-In development.  You can test this version by checking out branch v5.
-
-  * Now uses API version 1.1.
-  * Freight delivery now goes to towns as well as industries, allowing cargoes such as mail, goods, food, and water.  Applies to both subsidies and random routes.
-  * Planes are now handled by event system (crashes and unprofitability)
-  * Plane routes now start with 4 aircraft instead of 2.
-  * Route removal routines now just send the vehicles to a depot and do not wait for them to arrive.
-
-Planned Enhancements:
-  * Use API 1.5
-  * Ensure route-seeking and subsidy routines filter out oil rigs (until/unless ships are implemented)
-  * Advertise in the nearest town after a vehicle crash to raise cargo ratings
-  * Implement plane upgrade/replacement when better vehicles are available
+TeshiNet is an AI for OpenTTD written and (theoretically) maintained by Teshiron.  This AI has not been actively developed in over 7 years, and as such should be considered functional but deprecated.  Only bugs severe enough to crash the script will be investigated.
 
 # Change Log: #
 
 ## v4.0.3 ##
-Released 2015-04-20.  The master branch represents this version.
+Released 2015-04-20.  The master branch represents this version, and this is likely to be the last version.
 
   * Because of the impending closure of Google Code, project is now hosted on GitHub. Links to Google Code revision numbers may stop working when that site closes.
   * Bugfix: crash at load due to requiring old version of SuperLib. Now depends on v38.
